@@ -1,0 +1,9 @@
+﻿{
+  "name": "paper_flip",
+  "type": "SFX",
+  "description": "Professional sound effect for paper_flip.",
+  "durationSeconds": 1.440000,
+  "bestFor": ["Transitions", "UI", "Emphasis"],
+  "emotionalCue": "neutral",
+  "technicalNotes": "Duration confirmed via automated analysis."
+}

@@ -1,0 +1,9 @@
+﻿{
+  "name": "paper_rustle",
+  "type": "SFX",
+  "description": "Professional sound effect for paper_rustle.",
+  "durationSeconds": 1.200000,
+  "bestFor": ["Transitions", "UI", "Emphasis"],
+  "emotionalCue": "neutral",
+  "technicalNotes": "Duration confirmed via automated analysis."
+}

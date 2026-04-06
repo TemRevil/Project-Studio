@@ -1,0 +1,9 @@
+﻿{
+  "name": "whoosh_fast",
+  "type": "SFX",
+  "description": "Professional sound effect for whoosh_fast.",
+  "durationSeconds": 1.560000,
+  "bestFor": ["Transitions", "UI", "Emphasis"],
+  "emotionalCue": "neutral",
+  "technicalNotes": "Duration confirmed via automated analysis."
+}

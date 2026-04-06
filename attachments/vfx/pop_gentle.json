@@ -1,0 +1,9 @@
+﻿{
+  "name": "pop_gentle",
+  "type": "SFX",
+  "description": "Professional sound effect for pop_gentle.",
+  "durationSeconds": 0.720000,
+  "bestFor": ["Transitions", "UI", "Emphasis"],
+  "emotionalCue": "neutral",
+  "technicalNotes": "Duration confirmed via automated analysis."
+}

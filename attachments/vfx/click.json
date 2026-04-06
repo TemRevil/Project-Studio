@@ -1,0 +1,9 @@
+﻿{
+  "name": "click",
+  "type": "SFX",
+  "description": "Professional sound effect for click.",
+  "durationSeconds": 0.648000,
+  "bestFor": ["Transitions", "UI", "Emphasis"],
+  "emotionalCue": "neutral",
+  "technicalNotes": "Duration confirmed via automated analysis."
+}

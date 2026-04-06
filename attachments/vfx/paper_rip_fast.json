@@ -1,0 +1,9 @@
+﻿{
+  "name": "paper_rip_fast",
+  "type": "SFX",
+  "description": "Professional sound effect for paper_rip_fast.",
+  "durationSeconds": 1.044875,
+  "bestFor": ["Transitions", "UI", "Emphasis"],
+  "emotionalCue": "neutral",
+  "technicalNotes": "Duration confirmed via automated analysis."
+}

@@ -1,0 +1,9 @@
+﻿{
+  "name": "whoosh_soft",
+  "type": "SFX",
+  "description": "Professional sound effect for whoosh_soft.",
+  "durationSeconds": 0.574688,
+  "bestFor": ["Transitions", "UI", "Emphasis"],
+  "emotionalCue": "neutral",
+  "technicalNotes": "Duration confirmed via automated analysis."
+}

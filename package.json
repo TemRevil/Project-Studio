@@ -1,0 +1,57 @@
+{
+  "name": "project-studio",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Project Studio 1.0 — Temy's AI video production system",
+  "scripts": {
+    "start": "remotion studio",
+    "studio": "tsx src/studio-main.mts",
+    "generate": "tsx src/cli.tsx generate",
+    "render": "tsx src/cli.tsx render",
+    "doctor": "tsx src/cli.tsx doctor",
+    "assets": "tsx src/cli.tsx assets",
+    "library": "tsx src/cli.tsx library",
+    "list": "tsx src/cli.tsx library",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@google/generative-ai": "^0.24.1",
+    "@iconify/react": "^5.0.2",
+    "@remotion/animation-utils": "4.0.290",
+    "@remotion/bundler": "4.0.290",
+    "@remotion/cli": "4.0.290",
+    "@remotion/google-fonts": "4.0.290",
+    "@remotion/lottie": "4.0.290",
+    "@remotion/media-utils": "4.0.290",
+    "@remotion/noise": "4.0.290",
+    "@remotion/renderer": "4.0.290",
+    "@remotion/shapes": "4.0.290",
+    "@types/inquirer": "^9.0.9",
+    "axios": "^1.7.0",
+    "chalk": "4.1.2",
+    "dotenv": "^16.4.5",
+    "ink": "^6.8.0",
+    "ink-select-input": "^6.2.0",
+    "ink-text-input": "^6.0.0",
+    "inquirer": "8.2.7",
+    "openai": "^6.33.0",
+    "ora": "^9.3.0",
+    "remotion": "4.0.290",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "ffmpeg-static": "^5.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  },
+  "remotion": {
+    "entryPoint": "src/Root.tsx"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
