@@ -158,6 +158,12 @@ const buildKineticScene = (scene: GenerationPlanScene, index: number, totalScene
   const { hero, support } = splitNarration(scene.narration);
   const finalScene = index === totalScenes - 1;
 
+  // Extract trigger word from narration
+  const heroWords = (hero || scene.narration).split(/\s+/).filter(Boolean);
+  const heroTrigger = heroWords[0] || null;
+  const supportWords = (support || "").split(/\s+/).filter(Boolean);
+  const supportTrigger = supportWords.length > 0 ? supportWords[supportWords.length - 1] : null;
+
   return {
     id: scene.id,
     startSecond: scene.startSecond,
@@ -165,6 +171,16 @@ const buildKineticScene = (scene: GenerationPlanScene, index: number, totalScene
     narration: scene.narration,
     voiceId: index % 2 === 0 ? "Stella" : "Benjamin",
     emotion: index % 2 === 0 ? "confident" : "excited",
+    speed: finalScene ? 0.95 : 1.0,
+    voiceDirection: {
+      emotion: finalScene ? "sarcastic" : (index % 2 === 0 ? "confident" : "excited"),
+      speed: finalScene ? 0.95 : 1.0,
+      pauseBeforeMs: 0,
+      pauseAfterMs: finalScene ? 300 : 200,
+      emphasis: scene.accentKeyword ? [scene.accentKeyword] : [],
+    },
+    wordTimestamps: [],
+    audioDurationSeconds: 0,
     visual: {
       type: "kinetic",
       background: "dark",
@@ -175,6 +191,7 @@ const buildKineticScene = (scene: GenerationPlanScene, index: number, totalScene
           label: hero || scene.narration,
           position: SAFE_POSITIONS.center,
           entryFrame: 0,
+          triggersOnWord: heroTrigger,
           scale: 1.1,
           rotate: index % 2 === 0 ? -2 : 2,
           zIndex: 5,
@@ -187,6 +204,7 @@ const buildKineticScene = (scene: GenerationPlanScene, index: number, totalScene
           label: support || "Keep the pipeline honest.",
           position: SAFE_POSITIONS.lowerCenter,
           entryFrame: Math.min(12, Math.max(6, Math.round(sceneFrames * 0.18))),
+          triggersOnWord: supportTrigger,
           scale: 0.9,
           zIndex: 4,
         },
@@ -200,6 +218,8 @@ const buildKineticScene = (scene: GenerationPlanScene, index: number, totalScene
           rotate: 15,
           zIndex: 1,
           entryFrame: 0,
+          triggersOnWord: null,
+          opacity: 0.20,
         }
       ],
     },
@@ -219,6 +239,16 @@ const buildMotionScene = (scene: GenerationPlanScene): SceneConfig => {
     narration: scene.narration,
     voiceId: "Marlowe",
     emotion: "serious",
+    speed: 0.92,
+    voiceDirection: {
+      emotion: "serious",
+      speed: 0.92,
+      pauseBeforeMs: 0,
+      pauseAfterMs: 200,
+      emphasis: scene.accentKeyword ? [scene.accentKeyword] : [],
+    },
+    wordTimestamps: [],
+    audioDurationSeconds: 0,
     visual: {
       type: "flow",
       background: "light",
@@ -233,6 +263,7 @@ const buildMotionScene = (scene: GenerationPlanScene): SceneConfig => {
           rotate: -5,
           zIndex: 3,
           entryFrame: 0,
+          triggersOnWord: first,
         },
         {
           id: `${scene.id}-thread`,
@@ -241,6 +272,7 @@ const buildMotionScene = (scene: GenerationPlanScene): SceneConfig => {
           position: SAFE_POSITIONS.center,
           zIndex: 2,
           entryFrame: Math.min(10, Math.round(sceneFrames * 0.15)),
+          triggersOnWord: null,
           isTeal: true,
         },
         {
@@ -251,6 +283,7 @@ const buildMotionScene = (scene: GenerationPlanScene): SceneConfig => {
           scale: 1.4,
           zIndex: 5,
           entryFrame: Math.min(14, Math.round(sceneFrames * 0.22)),
+          triggersOnWord: second,
           isTeal: true,
         },
         {
@@ -263,6 +296,7 @@ const buildMotionScene = (scene: GenerationPlanScene): SceneConfig => {
           rotate: 5,
           zIndex: 3,
           entryFrame: Math.min(22, Math.round(sceneFrames * 0.34)),
+          triggersOnWord: third ?? null,
         },
       ],
     },
@@ -280,6 +314,16 @@ const buildSlidesScene = (scene: GenerationPlanScene): SceneConfig => {
     startSecond: scene.startSecond,
     endSecond: scene.endSecond,
     narration: scene.narration,
+    speed: 0.90,
+    voiceDirection: {
+      emotion: "calm",
+      speed: 0.90,
+      pauseBeforeMs: 0,
+      pauseAfterMs: 200,
+      emphasis: [],
+    },
+    wordTimestamps: [],
+    audioDurationSeconds: 0,
     visual: {
       type: "text-only",
       background: "light",
@@ -290,6 +334,7 @@ const buildSlidesScene = (scene: GenerationPlanScene): SceneConfig => {
           label: scene.objective.replace(/\.$/, ""),
           position: SAFE_POSITIONS.upperCenter,
           entryFrame: 0,
+          triggersOnWord: null,
         },
         ...points.map((point, index) => ({
           id: `${scene.id}-point-${index + 1}`,
@@ -297,6 +342,7 @@ const buildSlidesScene = (scene: GenerationPlanScene): SceneConfig => {
           label: point,
           position: { x: "50%", y: `${42 + index * 13}%` },
           entryFrame: Math.min(sceneFrames - 6, 10 + index * 12),
+          triggersOnWord: point.split(/\s+/)[0] || null,
           isTeal: index === 0,
         })),
       ],
@@ -319,7 +365,7 @@ const createLocalScript = (request: GenerationRequest, plan: GenerationPlan): Vi
   });
 
   return VideoScriptSchema.parse({
-    version: 2,
+    version: 3,
     status: "draft",
     topic: request.topic,
     slug: plan.slug,

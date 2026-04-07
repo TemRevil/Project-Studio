@@ -1,110 +1,112 @@
-# SYNC.md — Project Studio 1.0
-## The Most Important Rule: Everything Syncs to Audio
+# SYNC.md — Project Studio 2.0
+## The Most Important Rule: Everything Syncs to Audio (v3 — STT-Driven)
 
 ---
 
 ## THE MASTER RULE
 
-Audio is generated first. Audio duration is measured.
-Everything visual is built to match that audio — frame by frame.
+Audio is generated first. Audio is transcribed to get word-level timestamps.
+Everything visual is mapped to exact frames from those timestamps.
 If it doesn't sync, it doesn't ship.
 
 ---
 
-## WORD-TO-FRAME MAPPING
-
-Every word the narrator speaks maps to a specific frame number.
-Claude calculates this before generating any scene elements.
+## v3 SYNC ENGINE ARCHITECTURE
 
 ```
-Default speech pace: 2.5 words per second
-Frames per word at 30fps: 30 / 2.5 = 12 frames per word
-
-wordStartFrame = startFrame + (wordIndex * 12)
+STEP 1: LLM generates script JSON with triggersOnWord on every element
+STEP 2: Voxtral TTS generates per-scene audio files
+STEP 3: Voxtral STT transcribes each audio → word-level timestamps (ms precision)
+STEP 4: Sync engine maps triggersOnWord → wordTimestamp → entryFrame
+STEP 5: Scene durations reconciled from actual audio lengths
+STEP 6: Remotion renders with exact frame data
 ```
 
-Adjust if voice is faster or slower:
-- Fast speaker (3 wps):  30 / 3.0 = 10 frames per word
-- Slow speaker (2 wps):  30 / 2.0 = 15 frames per word
+---
 
-After first render, tune framesPerWord in the component if sync is off.
-Edit script JSON → re-run `npm run render -- --slug [slug]`
+## WORD-TO-FRAME MAPPING (EXACT — NOT ESTIMATED)
+
+Every word in the narration has an exact start and end time from STT.
+Frames are calculated as:
+
+```
+BUFFER_MS = 50  (visual appears 50ms before word for natural feel)
+
+wordStartFrame = max(0, round((wordStartSec - 0.050) × 30))
+wordEndFrame   = round(wordEndSec × 30)
+```
+
+Scene total frames from audio:
+```
+LINGER_FRAMES = 9  (0.3s after last word for breathing room)
+
+sceneFrames = round(audioDurationSec × 30) + LINGER_FRAMES
+```
+
+---
+
+## TRIGGERS — HOW THE LLM WRITES TIMING
+
+The LLM does NOT estimate entryFrame. It uses `triggersOnWord`:
+
+```json
+{
+  "id": "hero-1",
+  "kind": "hero",
+  "label": "Retrieval.",
+  "position": { "x": "50%", "y": "45%" },
+  "entryFrame": 0,
+  "triggersOnWord": "retrieval"
+}
+```
+
+The sync engine resolves `triggersOnWord: "retrieval"` → finds the STT timestamp
+where "retrieval" is spoken → sets `entryFrame` to the exact frame.
+
+For decorative/background elements that should appear at scene start:
+```json
+{ "triggersOnWord": null, "entryFrame": 0 }
+```
 
 ---
 
 ## ICON / LOTTIE SYNC — EXACT FRAME RULE
 
 Every icon appears at the exact frame the narrator says its keyword.
+The sync engine handles this automatically via triggersOnWord.
 
 Example:
 - Narrator says: "The database stores your embeddings."
-- "database" is word 2 in scene starting at frame 0
-- entryFrame for database icon = 2 * 12 = 24
-
-Claude always calculates this in the generated script JSON.
-Never uses round numbers like 0, 30, 60 unless they actually match.
+- STT reports "database" at 0.82s start
+- entryFrame = max(0, round((0.82 - 0.05) × 30)) = 23
 
 ---
 
-## CAPTION / TEXT SYNC
-
-Whether bold kinetic slam, handwritten SVG, or narration overlay:
-each word appears at its spoken frame.
-
-```tsx
-// Standard word-reveal sync pattern
-const FRAMES_PER_WORD = 12  // adjust per voice pace
-
-text.split(" ").map((word, i) => {
-  const wordFrame = sceneStartFrame + (i * FRAMES_PER_WORD)
-  // word appears at wordFrame
-})
-```
-
-For kinetic type — hero word slams on the first word of the narration line.
-Support text slides in on the word it corresponds to.
-
----
-
-## LOTTIE COLOR RULE
-
-Every Lottie used in a video must be recolored to match the palette.
-
-Step 1 — Open .json in LottieFiles.com editor or text editor
-Step 2 — Replace all hex color values with palette colors:
-```
-Any dark color    →  Navy  #16425b
-Any accent color  →  Sky   #81c3d7
-Any light fill    →  Smoke #e7e7e7
-Any mid color     →  Mauve #d5c5c8
-Any red/alert     →  Red   #ed1c24 (only if this is the red moment)
-```
-Step 3 — Save back to /attachments/lottie/
-Step 4 — Lottie plays at the entryFrame matching its audio keyword
-
----
-
-## SCENE TIMING ANATOMY
+## SCENE TIMING ANATOMY (v3)
 
 Every scene is built from audio out, not from visual in:
 
 ```
 Scene narration:   "RAG gives the LLM a library card."
-Words:             RAG(0) gives(1) the(2) LLM(3) a(4) library(5) card(6)
+STT result:
+  "RAG"     start=0.00  end=0.32  frame=0
+  "gives"   start=0.35  end=0.58  frame=9
+  "the"     start=0.61  end=0.72  frame=17
+  "LLM"     start=0.75  end=1.12  frame=21
+  "a"       start=1.15  end=1.22  frame=33
+  "library" start=1.25  end=1.58  frame=36
+  "card"    start=1.62  end=1.95  frame=47
 
-At frame 0:   Scene starts, camera push-in begins
-At frame 0:   "RAG" hero text slams in (word 0)
-At frame 12:  "gives" support text slides in (word 1)
-At frame 36:  "LLM" element springs in — highlighted sky (word 3)
-At frame 48:  "library" Lottie book icon plays (word 5)
-At frame 60:  "card" teal underline appears (word 6)
+Hero "RAG" element:     triggersOnWord="RAG"     → entryFrame=0
+Support "library card": triggersOnWord="library"  → entryFrame=36
+Background Lottie:      triggersOnWord=null       → entryFrame=0
 ```
 
 ---
 
 ## SAFE POSITION PRESETS
 
-Claude uses only these positions. Never invents arbitrary coordinates.
+Use only these positions. Never invent arbitrary coordinates.
 
 ```
 Name           x        y       Use case
@@ -124,21 +126,40 @@ For reel format: nothing above y: "15%" (safe zone) or below y: "85%"
 
 ---
 
+## VOICE DIRECTION
+
+Each scene has a voiceDirection object that controls TTS delivery:
+
+```json
+{
+  "emotion": "confident",
+  "speed": 1.0,
+  "pauseBeforeMs": 0,
+  "pauseAfterMs": 200,
+  "emphasis": ["retrieval"]
+}
+```
+
+Emotions map to speed: excited=1.05, confident=1.0, serious=0.92, calm=0.88, sarcastic=0.95
+
+---
+
 ## COMPLEXITY HONESTY
 
-### Claude handles these automatically:
-✅ Word-by-word text reveal synced to frame
-✅ Element spring-in at exact frame
-✅ Lottie playing at exact frame
+### The sync engine handles these automatically:
+✅ Word-by-word text reveal synced to exact STT frame
+✅ Element spring-in at exact frame from word trigger
+✅ Lottie playing at exact frame from word trigger
+✅ SFX triggered at exact frame from word trigger
+✅ Scene duration derived from actual audio length
 ✅ Self-drawing arrows and lines
 ✅ Color changes on cue
 ✅ Kinetic text slam / slide / fadeIn
 ✅ Scene transitions (dissolve, smash cut, wipe, fade)
 ✅ Parallax depth layers
-✅ Narration overlay with word sync
-✅ SFX triggered at exact frame
+✅ Narration overlay with exact word sync
 
-### Claude flags these as manual — always says so:
+### Flags these as manual:
 ⚠ Lip-sync tied to audio waveform
 ⚠ Physics (cloth, particles, fluid)
 ⚠ Path-following along a curved route
@@ -146,24 +167,14 @@ For reel format: nothing above y: "15%" (safe zone) or below y: "85%"
 ⚠ Bone-rigged character animation
 ⚠ Morph transitions between two complex shapes
 
-When flagging: Claude says exactly what the effect looks like,
-which tool handles it (Lottie / After Effects / manual JSON edit),
-and gives the exact steps to do it manually.
-No silent approximations. No broken workarounds passed off as working.
-
 ---
 
-## POST-RENDER SYNC TUNING
+## POST-RENDER SYNC TUNING (RARELY NEEDED IN v3)
 
-After every first render of a new video:
+With STT-driven timing, manual tuning should be rare. If needed:
 
-1. Watch it with sound
-2. Note any element that appears before or after its word
-3. Open /videos/[slug]/[slug]_script.json
-4. Find the element's entryFrame
-5. Adjust: if element is early → increase entryFrame. If late → decrease.
-6. Run: `npm run render -- --slug [slug]`
-7. Repeat until every element lands on its word
-
-This is normal. One pass of tuning per video is expected.
-After tuning, save the adjusted script JSON — it's your master template.
+1. Watch the render with sound
+2. Note any element that feels early or late
+3. Adjust BUFFER_MS in sync.ts (default 50ms)
+4. For individual elements, add entryDelayMs in the script JSON
+5. Re-run: `npm run render -- --slug [slug]`

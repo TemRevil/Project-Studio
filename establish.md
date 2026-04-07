@@ -1,4 +1,4 @@
-# ESTABLISH.md — Project Studio 1.0
+# ESTABLISH.md — Project Studio 2.0
 ## Read this first. Always. Before anything else.
 
 ---
@@ -111,7 +111,7 @@ cd ProjectStudio
 npm install
 ```
 
-Installs: Remotion v4 + all @remotion/* packages, Claude SDK, ElevenLabs, Iconify, TypeScript.
+Installs: Remotion v4 + all @remotion/* packages, Mistral TTS/STT via Transformers, Ink CLI, Iconify, TypeScript.
 
 ---
 
@@ -123,9 +123,8 @@ cp .env.example .env
 
 Fill in .env:
 ```
-ANTHROPIC_API_KEY=      ← console.anthropic.com
-ELEVENLABS_API_KEY=     ← elevenlabs.io
-ELEVENLABS_VOICE_ID=    ← ElevenLabs website → Voice Lab → Clone Voice → copy ID
+MISTRAL_API_KEY=        ← console.mistral.ai (use for TTS and STT)
+MISTRAL_VOICE_ID=       ← Mistral Studio → Voice Lab → Clone Voice → copy ID
 SERIES_NAME=            ← your channel name
 ```
 
@@ -147,11 +146,12 @@ npm start
 npm run generate
 ```
 
-Lens asks 6 questions, then:
-1. Generates script via Claude (claude-sonnet-4-6)
-2. Generates your cloned voice via ElevenLabs
-3. Renders MP4 via Remotion
-4. Saves everything to /videos/[slug]/
+Lens uses Ink in the terminal, then:
+1. Generates script via Gemini or OpenRouter
+2. Generates per-scene emotional voice via Mistral TTS
+3. Extracts perfect timestamps via Mistral STT (Voxtral)
+4. Renders MP4 via Remotion perfectly synced
+5. Saves everything to /videos/[slug]/
 
 CLI mode (skip questions):
 ```bash
@@ -285,10 +285,10 @@ If you make a v2: save as [slug]_v2.mp4 in the same subfolder.
 
 ## SYSTEM INFO
 
-Version: Project Studio 1.0
+Version: Project Studio 2.0
 Palette: #16425b #81c3d7 #ed1c24 #e7e7e7 #d5c5c8
-Model: claude-sonnet-4-6
-Voice: ElevenLabs eleven_multilingual_v2 (your cloned voice)
+Model: gemini / openrouter
+Voice: Mistral Voxtral (your cloned voice)
 Renderer: Remotion v4.0.290
 
 ---
@@ -319,19 +319,11 @@ How to recolor Lottie:
 Every icon, Lottie, or graphic element must enter at the exact frame
 that corresponds to when the narrator says the word it represents.
 
-Rule: if the narrator says "database" at second 4.2 of a scene,
-the database icon entryFrame = Math.round(4.2 * fps) within that scene.
+Rule: if the narrator says "database" at second 4.2 of a scene, set `"triggersOnWord": "database"` in the element spec. The Mistral STT sync engine will automatically extract the exact moment and output `entryFrame`. 
 
-Claude generates entryFrames by counting words and estimating timing.
-Word timing formula (default, adjust if audio differs):
-```
-averageWordsPerSecond = 2.5
-wordStartSecond = wordIndex / averageWordsPerSecond
-entryFrame = Math.round(wordStartSecond * fps)
-```
+No more guessing words per second. The LLM handles concept logic (`triggersOnWord`), and the physical pipeline handles execution (`entryFrame`).
 
-After first render: if icon appears early or late vs audio,
-edit entryFrame in the script JSON and re-run `npm run render -- --slug [slug]`.
+After first render: if you want an element delayed *after* a word, use `entryDelayMs`.
 
 ### 3. CAPTIONS AND TEXT SYNC TO AUDIO — ALWAYS
 
@@ -342,13 +334,10 @@ Whether bold kinetic text, handwritten path, or narration overlay:
 
 Word-reveal timing in Remotion:
 ```tsx
-// Each word staggered by frames matching speech pace
-const framesPerWord = Math.round(fps / 2.5)  // ~2.5 words/sec
-const wordStartFrame = startFrame + (wordIndex * framesPerWord)
+// Handled automatically via SyncedWordReveal component using STT exact frames
 ```
 
-After generating audio: if timing feels off, adjust `framesPerWord`
-in the component. Faster speech = smaller number. Slower = larger.
+Adjustments to timing are now precise frame manipulations rather than blind guessing.
 
 ### 4. AUDIO IS THE MASTER — EVERYTHING FOLLOWS IT
 

@@ -31,6 +31,22 @@ export interface Position {
   y: string;
 }
 
+export interface WordTimestamp {
+  word: string;
+  start: number;
+  end: number;
+  frame?: number;
+  endFrame?: number;
+}
+
+export interface VoiceDirection {
+  emotion: "excited" | "confident" | "serious" | "calm" | "sarcastic";
+  speed: number;
+  pauseBeforeMs: number;
+  pauseAfterMs: number;
+  emphasis: string[];
+}
+
 export interface VisualElement {
   id: string;
   kind: VisualElementKind;
@@ -41,6 +57,9 @@ export interface VisualElement {
   rotate?: number;
   zIndex?: number;
   entryFrame: number;
+  triggersOnWord?: string | null;
+  entryDelayMs?: number;
+  opacity?: number;
   isTeal?: boolean;
   isRed?: boolean;
 }
@@ -68,6 +87,7 @@ export interface SFXCue {
   frame: number;
   volume?: number;
   durationFrames?: number;
+  triggersOnWord?: string | null;
 }
 
 export interface SceneConfig {
@@ -79,6 +99,9 @@ export interface SceneConfig {
   emotion?: string;
   speed: number;
   audioFile?: string;
+  voiceDirection?: VoiceDirection;
+  wordTimestamps: WordTimestamp[];
+  audioDurationSeconds: number;
   visual: VisualConfig;
   character?: CharacterSceneConfig;
   tealElement?: TealElementConfig;
@@ -99,7 +122,7 @@ export interface RuntimeMedia {
 }
 
 export interface VideoScript {
-  version: 2;
+  version: 2 | 3;
   status: VideoStatus;
   topic: string;
   slug: string;

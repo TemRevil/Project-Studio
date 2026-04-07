@@ -1,4 +1,4 @@
-# KINETIC.md — Project Studio 1.0
+# KINETIC.md — Project Studio 2.0
 ## Video Type: Kinetic Typography
 
 ---
@@ -34,7 +34,7 @@ BEAT 4 [last 4 frames] Smash cut to next scene
 
 ## ELEMENT KINDS FOR KINETIC SCENES
 
-When Claude generates a kinetic VideoScript, elements use these kinds:
+When Lens generates a kinetic VideoScript, elements use these kinds:
 
 | kind         | role                                      | font size (reel) |
 |--------------|-------------------------------------------|-----------------|

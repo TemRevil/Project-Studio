@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+// ── Emotion constants for voice direction ──
+export const VOICE_EMOTIONS = ["excited", "confident", "serious", "calm", "sarcastic"] as const;
+export type VoiceEmotion = (typeof VOICE_EMOTIONS)[number];
+
+export const EMOTION_SPEED_MAP: Record<VoiceEmotion, number> = {
+  excited: 1.05,
+  confident: 1.0,
+  serious: 0.92,
+  calm: 0.88,
+  sarcastic: 0.95,
+} as const;
+
 export const PRODUCTION_VIDEO_TYPES = ["kinetic", "motion", "slides"] as const;
 export const EXPERIMENTAL_VIDEO_TYPES = ["animation", "images", "hybrid"] as const;
 export const VIDEO_TYPES = [...PRODUCTION_VIDEO_TYPES, ...EXPERIMENTAL_VIDEO_TYPES] as const;
@@ -120,16 +132,42 @@ export const PositionSchema = z.object({
   y: percentageOrCoordinate,
 });
 
+// ── Word-level timestamp from STT ──
+export const WordTimestampSchema = z.object({
+  word: z.string(),
+  start: z.number().nonnegative(),
+  end: z.number().nonnegative(),
+  frame: z.number().int().nonnegative().optional(),
+  endFrame: z.number().int().nonnegative().optional(),
+});
+
+export type WordTimestamp = z.infer<typeof WordTimestampSchema>;
+
+// ── Voice direction per scene ──
+export const VoiceDirectionSchema = z.object({
+  emotion: z.enum(VOICE_EMOTIONS).default("confident"),
+  speed: z.number().min(0.5).max(2.0).default(1.0),
+  pauseBeforeMs: z.number().nonnegative().default(0),
+  pauseAfterMs: z.number().nonnegative().default(0),
+  emphasis: z.array(z.string()).default([]),
+});
+
+export type VoiceDirection = z.infer<typeof VoiceDirectionSchema>;
+
 export const VisualElementSchema = z.object({
   id: nonEmptyString,
   kind: z.enum(VISUAL_ELEMENT_KINDS),
   label: z.string().trim().optional(),
   position: PositionSchema,
-  anchor: z.enum(["top-left", "top-center", "top-right", "center-left", "center-center", "center-right", "bottom-left", "bottom-center", "bottom-right"]).optional().default("center-center"),
-  scale: z.number().optional().default(1),
-  rotate: z.number().optional().default(0),
-  zIndex: z.number().int().optional().default(1),
+  anchor: z.enum(["top-left", "top-center", "top-right", "center-left", "center-center", "center-right", "bottom-left", "bottom-center", "bottom-right"]).optional(),
+  scale: z.number().optional(),
+  rotate: z.number().optional(),
+  zIndex: z.number().int().optional(),
   entryFrame: z.number().int().nonnegative(),
+  // v3: word-triggered timing (sync engine resolves to entryFrame)
+  triggersOnWord: z.string().nullable().optional(),
+  entryDelayMs: z.number().nonnegative().optional(),
+  opacity: z.number().min(0).max(1).optional(),
   isTeal: z.boolean().optional(),
   isRed: z.boolean().optional(),
 });
@@ -157,6 +195,8 @@ export const SFXCueSchema = z.object({
   frame: z.number().int().nonnegative(),
   volume: z.number().min(0).max(1).optional(),
   durationFrames: z.number().int().positive().optional(),
+  // v3: word-triggered SFX timing
+  triggersOnWord: z.string().nullable().optional(),
 });
 
 export const SceneConfigSchema = z.object({
@@ -168,6 +208,10 @@ export const SceneConfigSchema = z.object({
   emotion: z.string().optional(),
   speed: z.number().default(1),
   audioFile: z.string().optional(),
+  // v3: voice direction and word timestamps
+  voiceDirection: VoiceDirectionSchema.optional(),
+  wordTimestamps: z.array(WordTimestampSchema).default([]),
+  audioDurationSeconds: z.number().nonnegative().default(0),
   visual: VisualConfigSchema,
   character: CharacterSceneConfigSchema.optional(),
   tealElement: TealElementConfigSchema.optional(),
@@ -318,7 +362,7 @@ export const RunReportSchema = z.object({
 
 export const VideoScriptSchema = z
   .object({
-    version: z.literal(2),
+    version: z.union([z.literal(2), z.literal(3)]),
     status: z.enum(VIDEO_STATUSES),
     topic: nonEmptyString,
     slug: nonEmptyString.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),

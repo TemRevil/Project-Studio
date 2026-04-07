@@ -77,7 +77,7 @@ export const SceneRenderer = ({ scene, format, videoType, sceneDuration, runtime
         </AbsoluteFill>
         <AbsoluteFill style={{ transform: `translateX(${drift * 1.0}px)` }} />
       </AbsoluteFill>
-      <NarrationOverlay text={scene.narration} format={format} sceneDuration={sceneDuration} />
+      <NarrationOverlay text={scene.narration} format={format} sceneDuration={sceneDuration} wordTimestamps={scene.wordTimestamps} />
       <SceneTransition frame={frame} sceneDuration={sceneDuration} />
     </AbsoluteFill>
   );

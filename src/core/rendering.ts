@@ -102,6 +102,7 @@ export const renderVideoPackage = async ({ projectRoot, script, onProgress }: Re
       composition,
       serveUrl,
       codec: "h264",
+      concurrency: 2,
       outputLocation,
       inputProps: {
         script: parsedScript,

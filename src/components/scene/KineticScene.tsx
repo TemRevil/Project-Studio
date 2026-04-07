@@ -3,7 +3,7 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, staticFile } from "remot
 import { spring, interpolate, delayRender, continueRender } from "remotion";
 import { Lottie } from "@remotion/lottie";
 import { COLORS, FORMAT_CONFIG, SPRING } from "../../runtime";
-import type { SceneConfig, VideoFormat } from "../../runtime";
+import type { SceneConfig, VideoFormat, WordTimestamp } from "../../runtime";
 
 interface WordProps { word: string; startFrame: number; color?: string; variant?: "slam"|"slideUp"|"fadeIn"; style?: React.CSSProperties; }
 
@@ -19,19 +19,25 @@ export const KineticWord = ({ word, startFrame, color = COLORS.smoke, variant = 
 
 interface LineProps { text: string; startFrame: number; fontSize?: number; fontWeight?: number; color?: string; accentWord?: string; redWord?: string; variant?: "slam"|"slideUp"|"fadeIn"; }
 
-export const KineticLine = ({ text, startFrame, fontSize = 72, fontWeight = 700, color = COLORS.smoke, accentWord, redWord, variant = "slam" }: LineProps) => {
-  const frame = useCurrentFrame();
+export const KineticLine = ({ text, startFrame, fontSize = 72, fontWeight = 700, color = COLORS.smoke, accentWord, redWord, variant = "slam", wordTimestamps }: LineProps & { wordTimestamps?: WordTimestamp[] }) => {
   const words = text.split(" ");
-  const pulse = 1 + Math.sin(frame * 0.12) * 0.02;
+  const pulse = 1 + Math.sin(useCurrentFrame() * 0.12) * 0.02;
+  
   return (
     <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", fontSize, fontWeight, lineHeight: 1.1, letterSpacing: "-0.03em", textAlign: "center", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: `${fontSize * 0.18}px` }}>
       {words.map((word, i) => {
         const isAccent = accentWord && word.toLowerCase() === accentWord.toLowerCase();
         const isRed    = redWord && word.toLowerCase() === redWord.toLowerCase();
         const wordColor = isRed ? COLORS.red : isAccent ? COLORS.sky : color;
+        
+        // Match word with timestamp if available
+        const normalizedWord = word.toLowerCase().replace(/[^\w]/g, "");
+        const ts = wordTimestamps?.find(t => t.word.toLowerCase().replace(/[^\w]/g, "") === normalizedWord);
+        const wordStart = ts ? (ts.frame ?? Math.round(ts.start * 30)) : (startFrame + i * 3);
+
         return (
           <span key={i} style={{ display: "inline-block", transform: `scale(${isAccent ? pulse : 1})` }}>
-            <KineticWord word={word} startFrame={startFrame + i * 3} color={wordColor} variant={variant}
+            <KineticWord word={word} startFrame={wordStart} color={wordColor} variant={variant}
               style={{ textShadow: isAccent ? `0 0 40px rgba(129,195,215,0.4)` : isRed ? `0 0 30px rgba(237,28,36,0.5)` : "none" }} />
           </span>
         );
@@ -92,7 +98,7 @@ export const KineticScene = ({ scene, format, sceneDuration }: { scene: SceneCon
           <div style={{ transform: `scale(${heroEl.scale ?? 1}) rotate(${heroEl.rotate ?? 0}deg)`, zIndex: heroEl.zIndex ?? 4 }}>
             <KineticLine text={heroEl.label ?? ""} startFrame={heroEl.entryFrame} fontSize={heroSize} fontWeight={700}
               accentWord={heroEl.isTeal ? heroEl.label : undefined}
-              redWord={heroEl.isRed ? heroEl.label : undefined} variant="slam" />
+              redWord={heroEl.isRed ? heroEl.label : undefined} variant="slam" wordTimestamps={scene.wordTimestamps} />
           </div>
         )}
 
@@ -101,14 +107,14 @@ export const KineticScene = ({ scene, format, sceneDuration }: { scene: SceneCon
             <KineticLine text={supportEl.label ?? ""} startFrame={supportEl.entryFrame} fontSize={supportSize} fontWeight={500}
               color={`rgba(231,231,231,0.78)`}
               accentWord={supportEl.isTeal ? supportEl.label?.split(" ").pop() : undefined}
-              redWord={supportEl.isRed ? supportEl.label?.split(" ").pop() : undefined} variant="slideUp" />
+              redWord={supportEl.isRed ? supportEl.label?.split(" ").pop() : undefined} variant="slideUp" wordTimestamps={scene.wordTimestamps} />
           </div>
         )}
 
         {annotEl && (
           <div style={{ transform: `scale(${annotEl.scale ?? 1}) rotate(${annotEl.rotate ?? 0}deg)`, zIndex: annotEl.zIndex ?? 4 }}>
             <KineticLine text={annotEl.label ?? ""} startFrame={annotEl.entryFrame} fontSize={annotSize} fontWeight={400}
-              color={`rgba(231,231,231,0.42)`} variant="fadeIn" />
+              color={`rgba(231,231,231,0.42)`} variant="fadeIn" wordTimestamps={scene.wordTimestamps} />
           </div>
         )}
       </div>

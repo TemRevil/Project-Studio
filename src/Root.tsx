@@ -4,7 +4,7 @@ import { FORMAT_CONFIG } from "./runtime";
 import type { RuntimeMedia, VideoScript } from "./runtime";
 
 const defaultScript: VideoScript = {
-  version: 2,
+  version: 3,
   status: "draft",
   topic: "RAG Explained",
   slug: "rag-explained",
@@ -20,6 +20,9 @@ const defaultScript: VideoScript = {
       startSecond: 0,
       endSecond: 10,
       narration: "Your LLM is very confident. It's also making things up.",
+      speed: 1.0,
+      wordTimestamps: [],
+      audioDurationSeconds: 0,
       visual: {
         type: "kinetic",
         background: "dark",
@@ -35,6 +38,9 @@ const defaultScript: VideoScript = {
       startSecond: 10,
       endSecond: 20,
       narration: "RAG gives it a library card. Now it looks things up first.",
+      speed: 1.0,
+      wordTimestamps: [],
+      audioDurationSeconds: 0,
       visual: {
         type: "kinetic",
         background: "dark",
@@ -51,6 +57,9 @@ const defaultScript: VideoScript = {
       startSecond: 20,
       endSecond: 30,
       narration: "Didn't make it smarter. Just gave it a library card.",
+      speed: 1.0,
+      wordTimestamps: [],
+      audioDurationSeconds: 0,
       visual: {
         type: "kinetic",
         background: "dark",

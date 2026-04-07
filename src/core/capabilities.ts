@@ -26,11 +26,23 @@ export const buildRendererCapabilitiesManifest = (): RendererCapabilitiesManifes
       motion: ["fade", "camera-push", "scene-fade"],
       slides: ["slide-up", "point-reveal", "scene-fade"],
     },
+    syncEngine: {
+      version: 1,
+      features: [
+        "Per-scene TTS audio generation (Voxtral)",
+        "Word-level STT transcription with millisecond timestamps",
+        "triggersOnWord → entryFrame resolution",
+        "Automatic scene duration reconciliation from actual audio lengths",
+        "50ms visual-before-audio buffer for natural feel",
+        "9-frame linger after audio ends",
+      ],
+    },
     limitations: [
       "Production mode supports kinetic, motion, and slides only.",
       "Animation, images, and hybrid remain experimental until dedicated schemas and renderers are complete.",
       "Character animation is expression-based only; there is no lip sync or rigging.",
       "Motion connectors support straight lines and threads, not curved path-following.",
-      "The renderer expects safe-position layouts and deterministic timing.",
+      "v3 timing requires Mistral TTS+STT. Without audio, estimated timing is used as fallback.",
+      "triggersOnWord matching is case-insensitive substring match — ambiguous words may resolve to wrong timestamp.",
     ],
   });
