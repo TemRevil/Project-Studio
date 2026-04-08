@@ -2,6 +2,7 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from "remotion";
 import { spring } from "remotion";
 import { Lottie } from "@remotion/lottie";
+import { evolvePath, getLength } from "@remotion/paths";
 import { staticFile } from "remotion";
 import { SPRING } from "../../runtime";
 import { usePaletteColors } from "../ui/PaletteTheme";
@@ -42,10 +43,23 @@ export const DrawingLine = ({ x1, y1, x2, y2, startFrame = 0, color, strokeWidth
   const stroke = color ?? colors.mauve;
   const s = spring({ frame: frame - startFrame, fps, config: { stiffness: 120, damping: 20 } });
   const progress = Math.max(0, Math.min(1, s));
+  const linePath = `M ${x1} ${y1} L ${x2} ${y2}`;
+  const pathStyle = evolvePath(progress, linePath);
+  const pathLength = getLength(linePath);
+
   return (
     <svg style={{ position: "absolute", inset: 0, overflow: "visible", pointerEvents: "none" }} width="100%" height="100%">
       {progress > 0.02 && (
-        <line x1={x1} y1={y1} x2={x1 + (x2 - x1) * progress} y2={y1 + (y2 - y1) * progress} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={dashed ? "8 6" : undefined} opacity={0.8} />
+        <path
+          d={linePath}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={dashed ? `8 6 ${Math.max(8, pathLength)}` : pathStyle.strokeDasharray}
+          strokeDashoffset={dashed ? pathStyle.strokeDashoffset : pathStyle.strokeDashoffset}
+          opacity={0.8}
+        />
       )}
     </svg>
   );
@@ -60,9 +74,21 @@ export const HandwritingPath = ({ d, pathLength, startFrame = 0, color, strokeWi
   const stroke = color ?? colors.navy;
   const t = Math.max(0, Math.min(1, (frame - startFrame) / duration));
   const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  const resolvedPathLength = pathLength > 0 ? pathLength : getLength(d);
+  const pathStyle = evolvePath(eased, d);
+
   return (
     <svg style={{ position: "absolute", inset: 0, overflow: "visible", pointerEvents: "none" }} width="100%" height="100%">
-      <path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={pathLength} strokeDashoffset={pathLength * (1 - eased)} />
+      <path
+        d={d}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeDasharray={pathStyle.strokeDasharray || String(resolvedPathLength)}
+        strokeDashoffset={pathStyle.strokeDashoffset}
+      />
     </svg>
   );
 };

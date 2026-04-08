@@ -19,7 +19,7 @@ import {
   type SceneEntryVariant,
 } from "../types";
 import { buildRendererCapabilitiesManifest } from "./capabilities";
-import { buildAssetManifest, findAssetByRelativePath, listMissingProductionRequirements, pickBackgroundMusic } from "./assets";
+import { buildAssetManifest, buildFallbackAssetList, buildStudioNotes, findAssetByRelativePath, listMissingProductionRequirements, pickBackgroundMusic } from "./assets";
 import { buildRulesDigest } from "./rules";
 import { loadEnv, loadStudioConfig, type ProjectEnv, type StudioConfig } from "./env";
 import { PreflightFailure, UnsupportedCapabilityFailure } from "./errors";
@@ -32,6 +32,7 @@ export interface ProjectContext {
   env: ProjectEnv;
   config: StudioConfig;
   assetManifest: AssetManifest;
+  assetInventoryNotes: string;
   capabilities: RendererCapabilitiesManifest;
 }
 
@@ -52,12 +53,21 @@ const buildContext = (projectRoot: string): ProjectContext => {
   const env = loadEnv();
   const config = loadStudioConfig(projectRoot, env);
   const assetManifest = buildAssetManifest(projectRoot);
+  let assetInventoryNotes = buildFallbackAssetList(assetManifest);
+
+  try {
+    assetInventoryNotes = buildStudioNotes(projectRoot, assetManifest);
+  } catch {
+    assetInventoryNotes = buildFallbackAssetList(assetManifest);
+  }
+
   const capabilities = buildRendererCapabilitiesManifest();
 
   return {
     env,
     config,
     assetManifest,
+    assetInventoryNotes,
     capabilities,
   };
 };
@@ -107,29 +117,47 @@ const sceneCountForDuration = (durationSeconds: number) => {
 const buildFallbackNarrations = (request: GenerationRequest) => {
   const topic = request.topic.trim();
   const whatIsMatch = /^what(?:'s| is)\s+(.+)$/i.exec(topic);
-  const subject = whatIsMatch?.[1]?.trim();
+  const subject = whatIsMatch?.[1]?.trim() ?? topic;
 
-  if (subject) {
-    return [
-      `${subject} is not the answer. It is the step before the answer.`,
-      `Without it, the model guesses when it should verify.`,
-      `It pulls the right context in before generation starts.`,
-      `Question in. Relevant context back. Answer with evidence.`,
-      `${subject} feels smarter because the context got better.`,
-      `The model stayed the same. The workflow got grounded.`,
-      `${subject} turns recall into lookup before response.`,
-    ];
+  const subjectSpecific = [
+    `Most people think ${subject} is a minor upgrade. It is usually a repair for something foundational that kept failing quietly. The interesting part is where the old system breaks first.`,
+    `The previous approach looks fine in a demo, then falls apart in production. Rare cases expose the missing detail, and users blame the model instead of the pipeline behind it.`,
+    `${subject} changes the step where the error first appears. Instead of cleaning up a bad answer later, it feeds the system better context or better math before the answer forms.`,
+    `That matters because small errors compound fast. One weak assumption becomes a wrong retrieval, then a wrong response, then a confident explanation no one can trust.`,
+    `The result feels like intelligence, but the real win is reliability. ${subject} makes the system less dramatic by making each step more grounded and deliberate.`,
+    `Teams adopt ${subject} when they need repeatability, not novelty. It turns a clever prototype into something operators can predict, measure, and defend in production.`,
+    `${subject} is not magic added at the end. It is the design choice that stops the wrong answer from becoming inevitable.`,
+  ];
+
+  if (whatIsMatch) {
+    return subjectSpecific;
   }
 
   return [
-    `${topic} matters when the system stops guessing and starts checking.`,
-    `The common mistake is treating the workflow like magic.`,
-    `The fix is to make the mechanism visible before output.`,
-    `Input, context, and timing have to agree.`,
-    `Once the mechanism is clear, the result feels obvious.`,
-    `Reliable systems remove mystery by making each step explicit.`,
-    `That is how complex topics become usable instead of vague.`,
+    `${topic} looks abstract until you see the failure it prevents. The old system keeps one hidden weakness, and that weakness shows up exactly when the stakes get real.`,
+    `Most teams notice the symptom first. Outputs drift, latency spikes, or edge cases go weird. The harder part is noticing which step in the pipeline introduced that instability.`,
+    `${topic} fixes the mechanism, not just the presentation. It changes the way information gets processed before the final answer, which is why the output starts feeling more trustworthy.`,
+    `That design choice matters because errors do not stay local. One bad approximation contaminates the next step, then the next, until the user sees a confident result built on the wrong premise.`,
+    `Once ${topic} is in place, the system behaves less like a magic trick and more like infrastructure. Inputs, timing, and evidence start lining up instead of fighting each other.`,
+    `That is why experienced teams care about ${topic}. It is not only about smarter output. It is about predictable behavior under pressure.`,
+    `${topic} does not make complexity disappear. It forces the important part of the system into the open, where it can finally be controlled.`,
   ];
+};
+
+const countWords = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
+
+const verifyNarrationWordCount = (script: VideoScript, targetDurationSeconds: number) => {
+  const totalWords = script.scenes.reduce((sum, scene) => sum + countWords(scene.narration), 0);
+  const wordsPerSecond = 2.4;
+  const expectedDuration = totalWords / wordsPerSecond;
+  const deficit = targetDurationSeconds - expectedDuration;
+
+  return {
+    totalWords,
+    expectedDuration,
+    deficit,
+    isSufficient: expectedDuration >= targetDurationSeconds * 0.85,
+  };
 };
 
 const getDefaultKineticEntryVariant = (sceneIndex: number): SceneEntryVariant => {
@@ -587,6 +615,7 @@ const generatePlanWithProvider = async (
     capabilities: project.capabilities,
     assets: project.assetManifest,
     rules,
+    activeAssetInventory: project.assetInventoryNotes,
   });
 
   return generateStructuredOutput({
@@ -610,6 +639,7 @@ const generateScriptWithProvider = async (
     capabilities: project.capabilities,
     assets: project.assetManifest,
     rules,
+    activeAssetInventory: project.assetInventoryNotes,
   });
 
   return generateStructuredOutput({
@@ -644,6 +674,12 @@ export const buildDraftPackage = async (projectRoot: string, unsafeRequest: Gene
   if (request.operator.dryRun) {
     const plan = createLocalPlan(request);
     const script = enrichScript(request, project.assetManifest, createLocalScript(request, plan), "local-template", false);
+    const wordCheck = verifyNarrationWordCount(script, request.durationSeconds);
+    if (!wordCheck.isSufficient) {
+      warnings.push(
+        `Narration word count (${wordCheck.totalWords} words ~= ${wordCheck.expectedDuration.toFixed(1)}s) is below target (${request.durationSeconds}s). Consider regenerating or adding narration manually.`,
+      );
+    }
     return {
       request,
       project,
@@ -664,6 +700,13 @@ export const buildDraftPackage = async (projectRoot: string, unsafeRequest: Gene
   const scriptResult = await generateScriptWithProvider(request, plan, project, rules);
   const providerScript = VideoScriptSchema.parse(scriptResult.value);
   const script = enrichScript(request, project.assetManifest, providerScript, scriptResult.provider, scriptResult.repaired);
+  const wordCheck = verifyNarrationWordCount(script, request.durationSeconds);
+
+  if (!wordCheck.isSufficient) {
+    warnings.push(
+      `Narration word count (${wordCheck.totalWords} words ~= ${wordCheck.expectedDuration.toFixed(1)}s) is below target (${request.durationSeconds}s). Consider regenerating or adding narration manually.`,
+    );
+  }
 
   if (
     request.operator.includeMusic &&

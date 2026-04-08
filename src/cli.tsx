@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import path from "node:path";
 import { inspect } from "node:util";
 import chalk from "chalk";
 import { confirm, input, select } from "@inquirer/prompts";
-import { buildAssetManifest } from "./core/assets";
+import { buildAssetManifest, buildStudioNotes, getStudioNotesPath } from "./core/assets";
 import { runDoctor } from "./core/doctor";
 import { buildDraftPackage, createRequest } from "./core/generation";
 import { runProductionPipeline } from "./core/pipeline";
@@ -523,6 +524,36 @@ const commandAssets = (projectRoot: string, args: ParsedArgs) => {
   printLine(`missing required production assets: ${manifest.summary.missingProductionRequirements}`);
 };
 
+const commandInitAssets = (projectRoot: string, args: ParsedArgs) => {
+  const manifest = buildAssetManifest(projectRoot);
+  const studioNotes = buildStudioNotes(projectRoot, manifest);
+  const pendingRawFiles = fs.existsSync(path.join(projectRoot, "attachments", "New"))
+    ? fs.readdirSync(path.join(projectRoot, "attachments", "New")).filter((name) => name.toLowerCase() !== "initializing.md")
+    : [];
+
+  if (getBooleanArg(args, "json", false)) {
+    printJson({
+      studioNotesPath: path.relative(projectRoot, getStudioNotesPath(projectRoot)).replace(/\\/g, "/"),
+      studioNotesLength: studioNotes.length,
+      pendingRawFiles,
+      manifest,
+    });
+    return;
+  }
+
+  printHeader("Asset Notes Initialized");
+  printLine(`studio notes: ${path.relative(projectRoot, getStudioNotesPath(projectRoot)).replace(/\\/g, "/")}`);
+  printLine(`characters: ${manifest.categories.characters.length}`);
+  printLine(`icons: ${manifest.categories.icons.length}`);
+  printLine(`lottie: ${manifest.categories.lottie.length}`);
+  printLine(`music: ${manifest.categories.music.length}`);
+  printLine(`vfx: ${manifest.categories.vfx.length}`);
+  printLine(`missing required production assets: ${manifest.summary.missingProductionRequirements}`);
+  if (pendingRawFiles.length > 0) {
+    printLine(`pending raw files in attachments/New: ${pendingRawFiles.join(", ")}`);
+  }
+};
+
 const commandLibrary = (projectRoot: string, args: ParsedArgs) => {
   const library = getVideoLibrary(projectRoot);
   if (getBooleanArg(args, "json", false)) {
@@ -652,6 +683,9 @@ const main = async () => {
       return;
     case "assets":
       commandAssets(projectRoot, args);
+      return;
+    case "init-assets":
+      commandInitAssets(projectRoot, args);
       return;
     case "library":
       commandLibrary(projectRoot, args);

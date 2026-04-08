@@ -1,6 +1,5 @@
 import { AbsoluteFill, Audio, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { VisualLayer }      from "./VisualLayer";
-import { SceneTransition }  from "./SceneTransition";
 import { MotionScene }      from "./MotionScene";
 import { SlidesScene }      from "./SlidesScene";
 import { KineticScene }     from "./KineticScene";
@@ -122,7 +121,6 @@ export const SceneRenderer = ({
         <SceneCamera sceneDuration={sceneDuration} entryVariant={entryVariant}>
           <KineticScene scene={scene} format={format} sceneDuration={sceneDuration} />
         </SceneCamera>
-        <SceneTransition frame={frame} sceneDuration={sceneDuration} isDark />
       </AbsoluteFill>
     );
   }
@@ -135,7 +133,6 @@ export const SceneRenderer = ({
         <SceneCamera sceneDuration={sceneDuration} entryVariant={entryVariant}>
           <MotionScene scene={scene} format={format} sceneDuration={sceneDuration} />
         </SceneCamera>
-        <SceneTransition frame={frame} sceneDuration={sceneDuration} />
       </AbsoluteFill>
     );
   }
@@ -148,7 +145,6 @@ export const SceneRenderer = ({
         <SceneCamera sceneDuration={sceneDuration} entryVariant={entryVariant}>
           <SlidesScene scene={scene} format={format} sceneDuration={sceneDuration} />
         </SceneCamera>
-        <SceneTransition frame={frame} sceneDuration={sceneDuration} />
       </AbsoluteFill>
     );
   }
@@ -170,7 +166,6 @@ export const SceneRenderer = ({
         <AbsoluteFill style={{ transform: `translateX(${drift * 1.0}px)` }} />
       </SceneCamera>
       <NarrationOverlay text={scene.narration} format={format} sceneDuration={sceneDuration} wordTimestamps={scene.wordTimestamps} />
-      <SceneTransition frame={frame} sceneDuration={sceneDuration} />
     </AbsoluteFill>
   );
 };

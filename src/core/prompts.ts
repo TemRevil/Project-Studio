@@ -5,144 +5,240 @@ const section = (title: string, body: string) => [`## ${title}`, body.trim()].jo
 
 const toJson = (value: unknown) => JSON.stringify(value, null, 2);
 
-// ── The 9 Lens Skills (injected into every prompt) ──
+const getWordCountTargets = (durationSeconds: number) => {
+  const wordsPerSecond = 2.4;
+  const totalWords = Math.round(durationSeconds * wordsPerSecond);
+  const sceneCount = durationSeconds <= 30 ? 3 : durationSeconds <= 60 ? 5 : 7;
+  const wordsPerScene = Math.round(totalWords / sceneCount);
+  const sceneDuration = Number((durationSeconds / sceneCount).toFixed(1));
+
+  return {
+    wordsPerSecond,
+    totalWords,
+    sceneCount,
+    wordsPerScene,
+    sceneDuration,
+  };
+};
+
+const wordCountTarget = (durationSeconds: number) => {
+  const { wordsPerSecond, totalWords, sceneCount, wordsPerScene } = getWordCountTargets(durationSeconds);
+  const verificationLines = Array.from({ length: sceneCount }, (_, index) => `Scene ${index + 1}: __ words`);
+
+  return `
+WORD COUNT CONTRACT (non-negotiable):
+- Target duration: ${durationSeconds} seconds
+- Required total narration: ${totalWords} words minimum
+- Scenes: ${sceneCount}
+- Words per scene: ${wordsPerScene} minimum
+- Before finalizing: count every word in every narration line
+- If total is under ${totalWords}: add more sentences until you reach it
+- Voice speaks at ${wordsPerSecond.toFixed(1)} words/second. Math: ${totalWords} words / ${wordsPerSecond.toFixed(1)} = ${Math.round(totalWords / wordsPerSecond)}s
+
+VERIFICATION STEP (required):
+Count your words here before output:
+${verificationLines.join("\n")}
+Total: __ words (must be >= ${totalWords})
+  `;
+};
+
+const sceneTimingContract = (durationSeconds: number) => {
+  const { sceneCount, wordsPerScene, sceneDuration } = getWordCountTargets(durationSeconds);
+
+  return `
+Each scene's narration determines its actual duration. The sync engine measures this precisely.
+
+For a ${durationSeconds}-second video with ${sceneCount} scenes:
+- Target words per scene: ${wordsPerScene}
+- Target scene duration: about ${sceneDuration}s each
+- Words per second (Mistral TTS): about 2.4
+
+If a scene has fewer than ${Math.max(8, wordsPerScene - 5)} words, that beat will run short and the full video will miss the duration target.
+Count the words for EACH scene before submitting.
+  `;
+};
+
+const NARRATION_DEPTH_EXAMPLES = `
+TOPIC: "How Attention Mechanisms Work"
+
+SCENE 1 (Hook, 26 words):
+"Every word in a sentence affects every other word differently.
+Attention mechanisms let the model weigh those relationships.
+Before attention, language models read words in order like a typewriter."
+
+SCENE 2 (Problem, 28 words):
+"Reading left to right works for sentences. It fails for paragraphs.
+By the time the model reads 'bank' at the end, it has forgotten
+whether it was about money or a river from the beginning."
+
+SCENE 3 (Mechanism, 30 words):
+"Attention creates a weighted map of every word against every other word.
+The model learns that 'bank' and 'river' belong together more than 'bank' and 'money'
+in this specific sentence, not from rules, but from patterns in billions of examples."
+
+SCENE 4 (Result, 25 words):
+"The result is a model that reads the whole sentence at once, not sequentially.
+Context from the beginning still matters at the end.
+Long documents stopped being a problem."
+
+SCENE 5 (Punchline, 18 words):
+"Attention didn't make language models smarter.
+It made them stop reading like someone who forgets the beginning of every sentence."
+`.trim();
 
 const SKILL_1_ASSET_AWARENESS = `
-### SKILL 1 — ASSET AWARENESS
+### SKILL 1 - ASSET AWARENESS
 Before generating any script, read the full asset manifest.
 For every narration line, find the best matching Lottie animation by keyword.
-Never reference a file path that isn't in the manifest.
+Never reference a file path that is not in the manifest or ActiveAssetInventory.
 
 ASSET MATCHING LOGIC:
 1. Extract nouns from the narration line
 2. Search Lottie manifest keywords for matches
 3. If match found: use kind "icon" with the Lottie path as label
 4. If no match: use kind "label" with text only
-5. NEVER invent a path that doesn't exist
+5. NEVER invent a path that does not exist
 `.trim();
 
 const SKILL_2_NARRATION_QUALITY = `
-### SKILL 2 — NARRATION QUALITY
+### SKILL 2 - NARRATION QUALITY
 - Every scene narration must stand alone
-- The last line of every video must be a closed door. Not a question. A statement.
-- No sentence longer than 12 words. If a concept needs more: split across two scenes.
-- Narration rhythm: read it out loud. If you breathe in the same spot twice: one sentence is too long. Split it.
+- The last line of every video must be a closed door, not a question
+- No sentence longer than 12 words. If a concept needs more, split it into 2-3 sentences.
+- Narration rhythm: read it out loud. If you breathe in the same spot twice, split the sentence.
 `.trim();
 
 const SKILL_3_VISUAL_STORYTELLING = `
-### SKILL 3 — VISUAL STORYTELLING
+### SKILL 3 - VISUAL STORYTELLING
 For each narration line, ask: "What is the ONE image that represents what I just said?"
 Not two images. Not a diagram. One image.
 Build the visual around that one image.
-Supporting elements (annotations, labels) support the ONE image. They do not compete with it.
+Supporting elements support the ONE image. They do not compete with it.
 `.trim();
 
 const SKILL_4_EMOTIONAL_VOICE_DIRECTION = `
-### SKILL 4 — EMOTIONAL VOICE DIRECTION
+### SKILL 4 - EMOTIONAL VOICE DIRECTION
 Set voice direction for each scene based on narration content:
-- Problem revealed → emotion: "serious", speed: 0.92
-- Fix delivered → emotion: "confident", speed: 1.0
-- Punchline → emotion: "sarcastic", speed: 0.95, pauseBeforeMs: 400
-- Building excitement → emotion: "excited", speed: 1.05
-- Explaining steps → emotion: "calm", speed: 0.90
+- Problem revealed -> emotion: "serious", speed: 0.92
+- Fix delivered -> emotion: "confident", speed: 1.0
+- Punchline -> emotion: "sarcastic", speed: 0.95, pauseBeforeMs: 400
+- Building excitement -> emotion: "excited", speed: 1.05
+- Explaining steps -> emotion: "calm", speed: 0.90
 
 Punctuation controls micro-pauses:
-"." → natural pause | "..." → 200ms pause | "—" → hard restart | "," → breathe, continue
+"." -> natural pause | "..." -> 200ms pause | "-" -> hard restart | "," -> breathe, continue
 `.trim();
 
 const SKILL_5_SYNC_AWARENESS = `
-### SKILL 5 — SYNC AWARENESS
-Your 'triggersOnWord' values get resolved by the sync engine. Write them as natural descriptions:
-{ "triggersOnWord": "retrieval" }  ← resolves to exact frame when "retrieval" is spoken
-{ "triggersOnWord": "wrong" }      ← resolves to exact frame when "wrong" is spoken
+### SKILL 5 - SYNC AWARENESS
+Your triggersOnWord values get resolved by the sync engine. Write them as natural descriptions:
+{ "triggersOnWord": "retrieval" }  <- resolves to exact frame when "retrieval" is spoken
+{ "triggersOnWord": "wrong" }      <- resolves to exact frame when "wrong" is spoken
 
-For decorative/background elements with no word trigger:
-{ "triggersOnWord": null, "entryFrame": 0 }  ← appears at scene start
+For decorative or background elements with no word trigger:
+{ "triggersOnWord": null, "entryFrame": 0 }  <- appears at scene start
 
-DO NOT estimate entryFrame values. Set entryFrame to 0 for all triggered elements — the sync engine overrides them.
+Do not estimate entryFrame values. Set entryFrame to 0 for all triggered elements. The sync engine overrides them.
 `.trim();
 
 const SKILL_6_KINETIC_ARCHITECTURE = `
-### SKILL 6 — SCENE ARCHITECTURE (kinetic)
+### SKILL 6 - SCENE ARCHITECTURE (kinetic)
 Every kinetic scene follows this template:
-LAYER 1 (z: 1) — Background Lottie/icon, opacity 0.15-0.25, scale 1.5-2.0, no text
-LAYER 2 (z: 4) — Hero text, center/upper-center, LARGE, slams in at word 0  
-LAYER 3 (z: 4) — Support text, lower-center, SMALL, appears 0.3s after hero settles
-LAYER 4 (z: 5) — Sky accent on ONE word in hero or support, pulses gently
+LAYER 1 (z: 1) - Background Lottie/icon, opacity 0.15-0.25, scale 1.5-2.0, no text
+LAYER 2 (z: 4) - Hero text, center or upper-center, large, slams in at word 0
+LAYER 3 (z: 4) - Support text, lower-center, small, appears after the hero settles
+LAYER 4 (z: 5) - Sky accent on ONE word in hero or support, pulses gently
 `.trim();
 
 const SKILL_7_MOTION_ARCHITECTURE = `
-### SKILL 7 — MOTION SCENE ARCHITECTURE
-BEAT 1: Left node appears (problem/input)
-BEAT 2: Right node appears (result/output)
-BEAT 3: Arrow/thread draws between them (sky color)
-BEAT 4: Center concept appears ON the thread
+### SKILL 7 - MOTION SCENE ARCHITECTURE
+BEAT 1: Left node appears (problem or input)
+BEAT 2: Right node appears (result or output)
+BEAT 3: Arrow or thread draws between them (sky color)
+BEAT 4: Center concept appears on the thread
 BEAT 5: Center concept highlights when narrator says its keyword
-All timings from triggersOnWord, not frame estimates.
+All timings come from triggersOnWord, not frame estimates.
 `.trim();
 
 const SKILL_8_COMPLEXITY_HONESTY = `
-### SKILL 8 — COMPLEXITY HONESTY
+### SKILL 8 - COMPLEXITY HONESTY
 If a requested visual cannot be produced with available Remotion components:
-1. Say so in a "productionNotes" field
+1. Say so in a productionNotes field
 2. Describe the effect in plain terms
 3. Produce the closest viable alternative automatically
 Never approximate a complex effect without flagging it.
 `.trim();
 
 const SKILL_9_REAL_CONTENT = `
-### SKILL 9 — REAL CONTENT CREATION (MOST IMPORTANT)
+### SKILL 9 - REAL CONTENT CREATION + WORD COUNT CONTRACT
 
-You are creating SHORT-FORM EDUCATIONAL CONTENT for developers and tech people.
-The person watching has maybe 30 seconds. Every word has to EARN ITS PLACE.
+WORD COUNT CONTRACT (MANDATORY - CHECK BEFORE OUTPUT)
+The duration target is set by the request. Your narration MUST fill that duration.
 
-THE GOLDEN RULE: If someone asks "What is RAG?", write what RAG ACTUALLY IS.
-Not "RAG is important." Not "RAG looks simple."
-ACTUAL CONTENT: what it does, why it matters, the one thing that makes it click.
+30s -> minimum 72 words total (24 words x 3 scenes)
+45s -> minimum 108 words total (27 words x 4 scenes)
+60s -> minimum 144 words total (29 words x 5 scenes)
+90s -> minimum 216 words total (31 words x 7 scenes)
 
-HOOK FORMULA (scene 1 MUST follow this):
-Pick one of these proven formats:
-- CONTRADICTION: "Your LLM memorized the internet. It still doesn't know what happened last Tuesday."
-- PROBLEM FIRST: "Every LLM hallucinates. RAG is the only known fix that actually works."
-- SURPRISING FACT: "The model isn't getting smarter. It's getting a library card."
-- DIRECT CHALLENGE: "You've been using AI wrong. Here's why."
+Count every word in every narration before submitting.
+If total is under the minimum, add more sentences until you hit the target.
+One sentence is never enough. Each scene needs 2-3 complete sentences.
 
-SCENE CONTENT RULES:
-Scene 1 → Hook (makes viewer stop scrolling — 5 seconds max)
-Scene 2 → Problem (here's why this matters or hurts)
-Scene 3 → Solution (here's the fix — the core concept)
-Scene 4 → How it works (one mechanism, explained simply)
-Scene 5 → Why it matters (the payoff — the so what)
+CONTENT STANDARD:
+Every narration line must be specific to THIS topic.
+If a line could appear in a video about ANY tech topic, rewrite it.
 
-NARRATION WRITING RULES:
-1. Write like you're explaining to a smart friend, not a classroom
-2. Use concrete nouns: "database", "LLM", "query" — not "the system", "it", "this"
-3. Every scene narration should be completable with a specific visual
-4. Never use passive voice in narration
-5. If it sounds like a textbook: rewrite it
-6. The last scene MUST be a closed observation, not a call to action
+PER-SCENE NARRATION STRUCTURE:
+Sentence 1: State the core fact
+Sentence 2: Add the consequence or cause
+Sentence 3: Add the concrete detail that makes it stick
 
-BANNED CONTENT:
-- "It's important to understand..."
-- Generic filler phrases
-- Lists that could be in any video ("First... Second... Third...")
-- Anything that could apply to ANY topic (not specific to the user's topic)
-- Abstract descriptions with no concrete anchor
+THE SCENE ARC:
 
-EXAMPLE — Good vs Bad:
+Scene 1 - HOOK (contradiction or surprising fact)
+  Formula: "[Common belief]. [The contradiction]. [Why you should care]."
+  Word target: 20-28 words
 
-Topic: "What is RAG"
-BAD Scene 1: "RAG stands for Retrieval-Augmented Generation. It's important in AI."
-GOOD Scene 1: "Your LLM finished training in 2023. It has no idea what happened since."
+Scene 2 - THE PROBLEM (make the pain real)
+  Formula: "[What breaks]. [How it breaks]. [Who gets hurt by this]."
+  Word target: 22-30 words
 
-BAD Scene 2: "RAG solves the problem of hallucination."
-GOOD Scene 2: "It hallucinates because it's guessing. RAG stops the guessing."
+Scene 3 - THE MECHANISM (explain HOW, not just WHAT)
+  Formula: "[What the solution actually does]. [The specific technical insight]. [Why that matters]."
+  Word target: 24-32 words
 
-BAD Scene 3: "RAG retrieves relevant information."
-GOOD Scene 3: "Before answering, it searches your data. Then it reads. Then it talks."
+Scene 4 - THE RESULT (concrete outcome)
+  Formula: "[Before]. [After]. [The number or comparison that proves it]."
+  Word target: 20-28 words
 
-GOOD PUNCHLINE (last scene):
-"The model didn't get smarter. You gave it a library card."
+Scene 5 - THE PUNCHLINE (closed observation, not a call to action)
+  Formula: "[The reframe]. [The counterintuitive insight]."
+  Word target: 16-22 words
+
+BANNED PHRASES (auto-reject if found):
+- "It's important to note..."
+- "This technology enables..."
+- "[Topic] has revolutionized..."
+- "In conclusion..."
+- Any sentence under 8 words unless it is the final punchline beat
+- Any narration that could apply to any other tech topic
+
+HOOK FORMATS - Pick ONE per video:
+
+Type A - Contradiction:
+"[Widely held belief]. [The thing that breaks it]. [The implication]."
+
+Type B - Surprising Number:
+"[Specific number] [what it measures]. [The unexpected part of that number].
+[What it reveals about the system]."
+
+Type C - The Wrong Assumption:
+"Everyone thinks [common belief]. That is not how [topic] actually works.
+Here is what is happening under the hood."
+
+Type D - The Specific Failure:
+"[Specific scenario where the old approach fails].
+[Why it fails exactly]. [What fills the gap]."
 `.trim();
 
 const ALL_SKILLS = [
@@ -157,18 +253,18 @@ const ALL_SKILLS = [
   SKILL_9_REAL_CONTENT,
 ].join("\n\n");
 
-// ── Plan prompt ──
-
 export const buildPlanPrompt = ({
   request,
   capabilities,
   assets,
   rules,
+  activeAssetInventory,
 }: {
   request: GenerationRequest;
   capabilities: RendererCapabilitiesManifest;
   assets: AssetManifest;
   rules: RulesDigest;
+  activeAssetInventory: string;
 }) => {
   const palette = resolveColorPalette(request.paletteKey, request.customPalette);
   const style = resolveVideoStyle(request.videoStyle);
@@ -180,6 +276,10 @@ export const buildPlanPrompt = ({
     "Do not use markdown fences.",
     "",
     section("Skills (follow these exactly)", ALL_SKILLS),
+    section("WordCountContract", wordCountTarget(request.durationSeconds)),
+    section("ActiveAssetInventory", activeAssetInventory),
+    section("NarrationDepthExamples", NARRATION_DEPTH_EXAMPLES),
+    section("SceneTimingContract", sceneTimingContract(request.durationSeconds)),
     section("Request", toJson(request)),
     section(
       "TopicContext",
@@ -188,11 +288,11 @@ The topic is: "${request.topic}"
 
 Before generating, think:
 1. What is the single most important thing to know about this topic?
-2. What is the common WRONG ASSUMPTION people have about this topic?
+2. What is the common wrong assumption people have about this topic?
 3. What is the simplest real-world analogy that explains it?
-4. What is the "aha moment" — the one insight that makes it click?
+4. What is the "aha moment", the one insight that makes it click?
 
-Build your script around the AAAA moment. Everything else serves that moment.
+Build your script around the aha moment. Everything else serves that moment.
       `,
     ),
     section(
@@ -224,14 +324,15 @@ IMPORTANT: Use these exact hex values in the JSON. Never use palette nicknames i
       "Generation instructions",
       [
         "Create a cinematic, professional-grade production plan.",
-        "MANDATORY: Diverse Asset Usage. If the AssetManifest contains Lottie files (json) or specific VFX (whooshes, pops, rustles), you MUST use them.",
-        "MANDATORY: Do not default to 'click.mp3' for everything. Match the SFX to the visual intent.",
-        "MANDATORY: Visual flair. Use 'icon' kind for Lottie animations and 'image' for high-quality background/supporting visuals.",
+        "MANDATORY: Diverse Asset Usage. If the asset inventory contains Lottie files or specific VFX, use them intentionally.",
+        "MANDATORY: Match the SFX to the visual intent. Do not default to click.mp3 for everything.",
+        "MANDATORY: Visual flair. Use kind 'icon' for Lottie animations and 'image' for supporting visuals when they exist.",
         "MANDATORY: Multi-Voice Casting. Use different voice IDs (Stella, Benjamin, Marlowe, Leila) for different beats.",
-        "MANDATORY: Spatial Complexity. Utilize 'anchor', 'scale', 'rotate', and 'zIndex' for every element.",
-        "MANDATORY: Each scene MUST have a 'voiceDirection' object with emotion, speed, pauseBeforeMs, pauseAfterMs, emphasis.",
+        "MANDATORY: Spatial Complexity. Utilize anchor, scale, rotate, and zIndex for every element.",
+        "MANDATORY: Each scene MUST have a voiceDirection object with emotion, speed, pauseBeforeMs, pauseAfterMs, emphasis.",
+        "MANDATORY: Each scene narration must be 2-3 complete sentences and satisfy the word-count contract.",
+        "If no asset matches a concept, use kind 'label' or kind 'hero'. Never invent a file path.",
         "Respect the locked tone, brand, and color rules.",
-        "Each scene must have one narration line and a rich visual layer.",
       ].join("\n"),
     ),
     section(
@@ -250,7 +351,7 @@ IMPORTANT: Use these exact hex values in the JSON. Never use palette nicknames i
         "    {",
         '      "id": "scene-1",',
         '      "objective": "string",',
-        '      "narration": "string (max 12 words per sentence)",',
+        '      "narration": "2-3 sentences, specific, must satisfy the word-count contract",',
         '      "visualType": "kinetic|flow|diagram|text-only|icon|image",',
         '      "startSecond": 0,',
         '      "endSecond": 10,',
@@ -266,20 +367,20 @@ IMPORTANT: Use these exact hex values in the JSON. Never use palette nicknames i
   ].join("\n\n");
 };
 
-// ── Script prompt ──
-
 export const buildScriptPrompt = ({
   request,
   plan,
   capabilities,
   assets,
   rules,
+  activeAssetInventory,
 }: {
   request: GenerationRequest;
   plan: GenerationPlan;
   capabilities: RendererCapabilitiesManifest;
   assets: AssetManifest;
   rules: RulesDigest;
+  activeAssetInventory: string;
 }) => {
   const palette = resolveColorPalette(request.paletteKey, request.customPalette);
   const style = resolveVideoStyle(request.videoStyle);
@@ -290,6 +391,10 @@ export const buildScriptPrompt = ({
     "Do not wrap the response in markdown fences.",
     "",
     section("Skills (follow these exactly)", ALL_SKILLS),
+    section("WordCountContract", wordCountTarget(request.durationSeconds)),
+    section("ActiveAssetInventory", activeAssetInventory),
+    section("NarrationDepthExamples", NARRATION_DEPTH_EXAMPLES),
+    section("SceneTimingContract", sceneTimingContract(request.durationSeconds)),
     section("Request", toJson(request)),
     section(
       "TopicContext",
@@ -298,11 +403,11 @@ The topic is: "${request.topic}"
 
 Before generating, think:
 1. What is the single most important thing to know about this topic?
-2. What is the common WRONG ASSUMPTION people have about this topic?
+2. What is the common wrong assumption people have about this topic?
 3. What is the simplest real-world analogy that explains it?
-4. What is the "aha moment" — the one insight that makes it click?
+4. What is the "aha moment", the one insight that makes it click?
 
-Build your script around the AAAA moment. Everything else serves that moment.
+Build your script around the aha moment. Everything else serves that moment.
       `,
     ),
     section(
@@ -332,54 +437,22 @@ IMPORTANT: Use these exact hex values in the JSON. Never use palette nicknames i
     section("AssetManifest", toJson(assets)),
     section("RulesDigest", toJson(rules)),
     section(
-      "Example of good content (follow this pattern)",
-      `
-Topic: "What is RAG"
-
-Scene 1 (Hook):
-  narration: "Your LLM finished training in 2023. It has no idea what happened since."
-  emotion: "sarcastic"
-  hero: "Training cutoff."
-  support: "It stopped learning the day it launched."
-
-Scene 2 (Problem):
-  narration: "So when you ask about recent events, it guesses. Confidently."
-  emotion: "serious"
-  hero: "Confident."
-  support: "Also completely wrong."
-
-Scene 3 (Solution):
-  narration: "RAG fixes that. Before answering, it searches your docs first."
-  emotion: "confident"
-  hero: "Search first."
-  support: "Then answer."
-
-Scene 4 (Mechanism):
-  narration: "Query goes in. Database lookup happens. Relevant chunks go back to the LLM."
-  emotion: "calm"
-  flow: "Query → Vector DB → Context → LLM → Answer"
-
-Scene 5 (Punchline):
-  narration: "The model didn't get smarter. You gave it a library card."
-  emotion: "sarcastic"
-  hero: "Library card."
-  support: "That's it. That's RAG."
-      `,
-    ),
-    section(
       "Output requirements",
       [
         "Generate a high-fidelity VideoScript v3.",
-        "CRITICAL: Use 'triggersOnWord' instead of guessing 'entryFrame' values.",
+        "CRITICAL: Use triggersOnWord instead of guessing entryFrame values.",
         "Set entryFrame to 0 for all elements. The sync engine will override with exact STT timestamps.",
-        "MANDATORY: Each scene MUST have a 'voiceDirection' object: { emotion, speed, pauseBeforeMs, pauseAfterMs, emphasis }",
-        "MANDATORY: Use the AssetManifest. Search for Lottie animations matching the topic.",
-        "MANDATORY: Professional Soundscape. Mix various VFX from the manifest.",
-        "MANDATORY: Cinematic Motion. Use 'anchor', 'rotate', 'zIndex' for premium feel.",
-        "MANDATORY: Emotional Narration. Pick voiceId from: Stella (bright), Benjamin (warm), Marlowe (deep), Leila (clear).",
+        "MANDATORY: Each scene MUST have a voiceDirection object: { emotion, speed, pauseBeforeMs, pauseAfterMs, emphasis }.",
+        "MANDATORY: Use the ActiveAssetInventory and AssetManifest. Never invent a file path.",
+        "MANDATORY: Professional Soundscape. Mix various VFX from the manifest when they exist.",
+        "MANDATORY: Cinematic Motion. Use anchor, rotate, and zIndex for premium feel.",
+        "MANDATORY: Emotional Narration. Pick voiceId from Stella, Benjamin, Marlowe, or Leila.",
+        "MANDATORY: Each scene narration must be 2-3 complete sentences with a concrete fact, consequence, and memorable detail.",
+        "Count the words scene by scene before you output. If the total misses the contract, expand the narration.",
         "If kind is 'icon', label MUST be the relative path to a Lottie .json file from the manifest.",
+        "If no asset matches a concept, use kind 'label' or kind 'hero'.",
         "Only use supported visual element kinds: hero, support, annotation, card, label, thread, arrow, icon, lantern, library, image.",
-        "Background icon elements should have opacity: 0.15-0.25, scale: 1.5-2.0, zIndex: 1.",
+        "Background icon elements should have opacity 0.15-0.25, scale 1.5-2.0, and zIndex 1.",
       ].join("\n"),
     ),
     section(
@@ -401,7 +474,7 @@ Scene 5 (Punchline):
         '      "id": "scene-1",',
         '      "startSecond": 0,',
         '      "endSecond": 10,',
-        '      "narration": "Max 12 words. Direct. Punchy.",',
+        '      "narration": "2-3 sentences. Specific. Must meet the scene word target.",',
         '      "voiceId": "Stella|Benjamin|Marlowe|Leila",',
         '      "emotion": "excited|confident|serious|calm|sarcastic",',
         '      "speed": 1.0,',
@@ -421,7 +494,7 @@ Scene 5 (Punchline):
         "          {",
         '            "id": "bg-icon",',
         '            "kind": "icon",',
-        '            "label": "lottie/wired/some-file.json",',
+        '            "label": "lottie/wired/example.json",',
         '            "position": { "x": "50%", "y": "40%" },',
         '            "anchor": "center-center",',
         '            "scale": 2.0,',

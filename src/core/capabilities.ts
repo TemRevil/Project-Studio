@@ -22,9 +22,9 @@ export const buildRendererCapabilitiesManifest = (): RendererCapabilitiesManifes
       useCase: value.useCase,
     })),
     supportedTransitions: {
-      kinetic: ["hard-cut", "outro-fade"],
-      motion: ["fade", "camera-push", "scene-fade"],
-      slides: ["slide-up", "point-reveal", "scene-fade"],
+      kinetic: ["slide-from-left", "slide-from-right", "outro-fade"],
+      motion: ["wipe-from-right", "wipe-from-bottom-right", "camera-push"],
+      slides: ["fade", "point-reveal", "outro-fade"],
     },
     syncEngine: {
       version: 1,

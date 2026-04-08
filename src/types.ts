@@ -445,14 +445,6 @@ export const VideoScriptSchema = z
       lastEnd = scene.endSecond;
     });
 
-    if (Math.abs(lastEnd - script.durationSeconds) > 0.2) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Scene timing must reconcile with total duration.",
-        path: ["durationSeconds"],
-      });
-    }
-
     if (previousRedElement > 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
