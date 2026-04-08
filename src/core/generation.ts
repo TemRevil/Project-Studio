@@ -1,6 +1,5 @@
 import type { z } from "zod";
 import {
-  COLORS,
   FORMAT_CONFIG,
   GenerationPlanSchema,
   GenerationRequestSchema,
@@ -17,6 +16,7 @@ import {
   type SceneConfig,
   type VideoScript,
   type VideoType,
+  type SceneEntryVariant,
 } from "../types";
 import { buildRendererCapabilitiesManifest } from "./capabilities";
 import { buildAssetManifest, findAssetByRelativePath, listMissingProductionRequirements, pickBackgroundMusic } from "./assets";
@@ -26,6 +26,7 @@ import { PreflightFailure, UnsupportedCapabilityFailure } from "./errors";
 import { buildPlanPrompt, buildScriptPrompt } from "./prompts";
 import { generateStructuredOutput } from "./providers";
 import { slugify } from "./storage";
+import { DEFAULT_PALETTE_KEY, DEFAULT_VIDEO_STYLE_KEY } from "../studio/presets";
 
 export interface ProjectContext {
   env: ProjectEnv;
@@ -72,6 +73,9 @@ export const createRequest = (input: Partial<GenerationRequest>, projectRoot: st
     sarcasm: input.sarcasm ?? true,
     mode: input.mode ?? "production",
     quality: input.quality ?? context.config.defaults.quality,
+    videoStyle: input.videoStyle ?? DEFAULT_VIDEO_STYLE_KEY,
+    paletteKey: input.paletteKey ?? DEFAULT_PALETTE_KEY,
+    customPalette: input.customPalette,
     operator: {
       includeMusic: input.operator?.includeMusic ?? context.config.defaults.includeMusic,
       dryRun: input.operator?.dryRun ?? false,
@@ -100,19 +104,54 @@ const sceneCountForDuration = (durationSeconds: number) => {
   return 7;
 };
 
+const buildFallbackNarrations = (request: GenerationRequest) => {
+  const topic = request.topic.trim();
+  const whatIsMatch = /^what(?:'s| is)\s+(.+)$/i.exec(topic);
+  const subject = whatIsMatch?.[1]?.trim();
+
+  if (subject) {
+    return [
+      `${subject} is not the answer. It is the step before the answer.`,
+      `Without it, the model guesses when it should verify.`,
+      `It pulls the right context in before generation starts.`,
+      `Question in. Relevant context back. Answer with evidence.`,
+      `${subject} feels smarter because the context got better.`,
+      `The model stayed the same. The workflow got grounded.`,
+      `${subject} turns recall into lookup before response.`,
+    ];
+  }
+
+  return [
+    `${topic} matters when the system stops guessing and starts checking.`,
+    `The common mistake is treating the workflow like magic.`,
+    `The fix is to make the mechanism visible before output.`,
+    `Input, context, and timing have to agree.`,
+    `Once the mechanism is clear, the result feels obvious.`,
+    `Reliable systems remove mystery by making each step explicit.`,
+    `That is how complex topics become usable instead of vague.`,
+  ];
+};
+
+const getDefaultKineticEntryVariant = (sceneIndex: number): SceneEntryVariant => {
+  if (sceneIndex === 0) {
+    return "slam-from-bottom";
+  }
+
+  const variants: SceneEntryVariant[] = [
+    "slam-from-left",
+    "slam-from-right",
+    "slam-from-top",
+    "slam-from-bottom",
+  ];
+
+  return variants[sceneIndex % variants.length];
+};
+
 const createLocalPlan = (request: GenerationRequest): GenerationPlan => {
   const slug = slugify(request.topic);
   const sceneCount = sceneCountForDuration(request.durationSeconds);
   const sceneDuration = Number((request.durationSeconds / sceneCount).toFixed(2));
-  const baseNarrations = [
-    `${request.topic} looks simple. It usually isn't.`,
-    "The failure starts when the model guesses without structure.",
-    "A good system makes every step explicit before render.",
-    "That means timing, assets, and motion have to agree.",
-    "The point is not magic. The point is a reliable pipeline.",
-    "Professional output comes from constraints, not chaos.",
-    "Build the system once. Then the videos stop fighting you.",
-  ];
+  const baseNarrations = buildFallbackNarrations(request);
 
   const scenes: GenerationPlanScene[] = Array.from({ length: sceneCount }, (_, index) => {
     const startSecond = Number((index * sceneDuration).toFixed(2));
@@ -181,6 +220,7 @@ const buildKineticScene = (scene: GenerationPlanScene, index: number, totalScene
     },
     wordTimestamps: [],
     audioDurationSeconds: 0,
+    entryVariant: getDefaultKineticEntryVariant(index),
     visual: {
       type: "kinetic",
       background: "dark",
@@ -211,7 +251,7 @@ const buildKineticScene = (scene: GenerationPlanScene, index: number, totalScene
         {
           id: `${scene.id}-bg-icon`,
           kind: "icon",
-          label: "lottie/wired/wired-lineal-19-magnifier.json",
+          label: "lottie/wired/wired-lineal-19-magnifier-zoom-search-hover-spin.json",
           position: SAFE_POSITIONS.center,
           anchor: "center-center",
           scale: 1.5,
@@ -375,6 +415,9 @@ const createLocalScript = (request: GenerationRequest, plan: GenerationPlan): Vi
     sarcasm: request.sarcasm,
     mode: request.mode,
     quality: request.quality,
+    videoStyle: request.videoStyle,
+    paletteKey: request.paletteKey,
+    customPalette: request.customPalette,
     scenes,
     runMetadata: {
       generatedAt: new Date().toISOString(),
@@ -510,7 +553,7 @@ const enrichScript = (request: GenerationRequest, manifest: AssetManifest, rawSc
   return reconcileSceneTiming(
     VideoScriptSchema.parse({
       ...rawScript,
-      version: 2,
+      version: 3,
       status: "draft",
       topic: request.topic,
       slug: rawScript.slug || slugify(request.topic),
@@ -520,6 +563,9 @@ const enrichScript = (request: GenerationRequest, manifest: AssetManifest, rawSc
       sarcasm: request.sarcasm,
       mode: request.mode,
       quality: request.quality,
+      videoStyle: request.videoStyle,
+      paletteKey: request.paletteKey,
+      customPalette: request.customPalette,
       backgroundMusic: buildBackgroundMusic(request, manifest),
       runMetadata: {
         generatedAt: new Date().toISOString(),
@@ -619,7 +665,10 @@ export const buildDraftPackage = async (projectRoot: string, unsafeRequest: Gene
   const providerScript = VideoScriptSchema.parse(scriptResult.value);
   const script = enrichScript(request, project.assetManifest, providerScript, scriptResult.provider, scriptResult.repaired);
 
-  if (!project.assetManifest.categories.music.some((asset) => asset.relativePath === script.backgroundMusic?.file)) {
+  if (
+    request.operator.includeMusic &&
+    !project.assetManifest.categories.music.some((asset) => asset.relativePath === script.backgroundMusic?.file)
+  ) {
     warnings.push("No background music asset is available. The render will proceed without music.");
   }
 

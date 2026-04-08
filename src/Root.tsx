@@ -10,11 +10,14 @@ const defaultScript: VideoScript = {
   slug: "rag-explained",
   type: "kinetic",
   format: "reel",
-  durationSeconds: 30,
-  sarcasm: true,
-  mode: "preview",
-  quality: "production",
-  scenes: [
+   durationSeconds: 30,
+   sarcasm: true,
+   mode: "preview",
+   quality: "production",
+   videoStyle: "kinetic-fast",
+   paletteKey: "navy-sky",
+   customPalette: undefined,
+   scenes: [
     {
       id: "scene-1",
       startSecond: 0,

@@ -1,3 +1,5 @@
+import { DEFAULT_PALETTE_KEY, resolveColorPalette } from "./studio/presets";
+
 export type VideoType = "animation" | "motion" | "slides" | "kinetic" | "images" | "hybrid";
 export type VideoFormat = "reel" | "video" | "square";
 export type CharacterExpression =
@@ -46,6 +48,24 @@ export interface VoiceDirection {
   pauseAfterMs: number;
   emphasis: string[];
 }
+
+export interface ColorPalette {
+  name: string;
+  mainBackground: string;
+  primaryText: string;
+  accentColor: string;
+  emphasisColor: string;
+  surfaceColor: string;
+  secondaryColor: string;
+}
+
+export type SceneEntryVariant =
+  | "slam-from-top"
+  | "slam-from-bottom"
+  | "slam-from-left"
+  | "slam-from-right"
+  | "zoom-in"
+  | "instant";
 
 export interface VisualElement {
   id: string;
@@ -102,6 +122,7 @@ export interface SceneConfig {
   voiceDirection?: VoiceDirection;
   wordTimestamps: WordTimestamp[];
   audioDurationSeconds: number;
+  entryVariant?: SceneEntryVariant;
   visual: VisualConfig;
   character?: CharacterSceneConfig;
   tealElement?: TealElementConfig;
@@ -132,6 +153,9 @@ export interface VideoScript {
   sarcasm: boolean;
   mode: GenerationMode;
   quality: QualityMode;
+  videoStyle?: string;
+  paletteKey?: string;
+  customPalette?: ColorPalette;
   scenes: SceneConfig[];
   audioFile?: string;
   audioDurationFrames?: number;
@@ -161,39 +185,90 @@ export const SAFE_POSITIONS = {
   bottomRight: { x: "75%", y: "65%" },
 } as const;
 
-export const COLORS = {
-  navy: "#16425b",
-  sky: "#81c3d7",
-  red: "#ed1c24",
-  smoke: "#e7e7e7",
-  mauve: "#d5c5c8",
-  navyDark: "#0d2333",
-  navyLight: "#1e5578",
-  skyDark: "#5a9cb5",
-  skyLight: "#aad8e8",
-  redDark: "#b5141a",
-  smokeDeep: "#c8c8c8",
-  mauveLight: "#ede0e2",
-  cream: "#e7e7e7",
-  offWhite: "#ede0e2",
-  kraft: "#d5c5c8",
-  warmShadow: "#5a9cb5",
-  darkText: "#16425b",
-  teal: "#81c3d7",
-  tealLight: "#aad8e8",
-  tealDark: "#5a9cb5",
-  darkBg: "#0d2333",
-  shadowDark: "rgba(22,66,91,0.20)",
-  shadowLight: "rgba(22,66,91,0.10)",
-  shadowSky: "rgba(129,195,215,0.30)",
-} as const;
+const clampChannel = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 
-export const SHADOWS = {
-  card: "0px 4px 12px rgba(22,66,91,0.18)",
-  light: "0px 2px 6px rgba(22,66,91,0.12)",
-  sky: "0px 4px 16px rgba(129,195,215,0.28)",
-  glow: "0 0 40px rgba(129,195,215,0.35)",
-} as const;
+const hexToRgb = (hex: string) => {
+  const normalized = hex.replace("#", "");
+  const value = normalized.length === 3
+    ? normalized.split("").map((part) => `${part}${part}`).join("")
+    : normalized;
+
+  const parsed = Number.parseInt(value, 16);
+
+  return {
+    r: (parsed >> 16) & 255,
+    g: (parsed >> 8) & 255,
+    b: parsed & 255,
+  };
+};
+
+const mixHex = (base: string, target: string, amount: number) => {
+  const start = hexToRgb(base);
+  const end = hexToRgb(target);
+
+  return `#${[start.r, start.g, start.b]
+    .map((channel, index) => {
+      const targetChannel = [end.r, end.g, end.b][index];
+      return clampChannel(channel + (targetChannel - channel) * amount).toString(16).padStart(2, "0");
+    })
+    .join("")}`;
+};
+
+export const toRgba = (hex: string, alpha: number) => {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
+export const buildRuntimeColors = (
+  paletteKey: string = DEFAULT_PALETTE_KEY,
+  customPalette?: ColorPalette,
+) => {
+  const palette = resolveColorPalette(paletteKey, customPalette);
+
+  return {
+    navy: palette.mainBackground,
+    sky: palette.accentColor,
+    red: palette.emphasisColor,
+    smoke: palette.primaryText,
+    mauve: palette.secondaryColor,
+    navyDark: mixHex(palette.mainBackground, "#000000", 0.35),
+    navyLight: mixHex(palette.mainBackground, "#ffffff", 0.18),
+    skyDark: mixHex(palette.accentColor, "#000000", 0.22),
+    skyLight: mixHex(palette.accentColor, "#ffffff", 0.28),
+    redDark: mixHex(palette.emphasisColor, "#000000", 0.24),
+    smokeDeep: mixHex(palette.primaryText, "#000000", 0.12),
+    mauveLight: mixHex(palette.surfaceColor, "#ffffff", 0.08),
+    cream: palette.surfaceColor,
+    offWhite: mixHex(palette.surfaceColor, "#ffffff", 0.08),
+    kraft: palette.secondaryColor,
+    warmShadow: toRgba(palette.mainBackground, 0.18),
+    darkText: mixHex(palette.mainBackground, "#000000", 0.08),
+    teal: palette.accentColor,
+    tealLight: mixHex(palette.accentColor, "#ffffff", 0.28),
+    tealDark: mixHex(palette.accentColor, "#000000", 0.22),
+    darkBg: mixHex(palette.mainBackground, "#000000", 0.42),
+    shadowDark: toRgba(palette.mainBackground, 0.20),
+    shadowLight: toRgba(palette.mainBackground, 0.10),
+    shadowSky: toRgba(palette.accentColor, 0.30),
+  } as const;
+};
+
+export const buildRuntimeShadows = (colors = buildRuntimeColors()) => ({
+  card: `0px 4px 12px ${toRgba(colors.navy, 0.18)}`,
+  light: `0px 2px 6px ${toRgba(colors.navy, 0.12)}`,
+  sky: `0px 4px 16px ${toRgba(colors.sky, 0.28)}`,
+  glow: `0 0 40px ${toRgba(colors.sky, 0.35)}`,
+}) as const;
+
+export const getActivePalette = (paletteKey?: string, customPalette?: ColorPalette) =>
+  buildRuntimeColors(paletteKey ?? DEFAULT_PALETTE_KEY, customPalette);
+export const getActiveShadows = (paletteKey?: string, customPalette?: ColorPalette) =>
+  buildRuntimeShadows(getActivePalette(paletteKey, customPalette));
+
+export const COLORS = getActivePalette();
+export const SHADOWS = buildRuntimeShadows(COLORS);
+export type RuntimeColors = ReturnType<typeof buildRuntimeColors>;
+export type RuntimeShadows = ReturnType<typeof buildRuntimeShadows>;
 
 export const SPRING = {
   default: { stiffness: 140, damping: 18 },

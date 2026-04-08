@@ -3,6 +3,15 @@ import { z } from "zod";
 // ── Emotion constants for voice direction ──
 export const VOICE_EMOTIONS = ["excited", "confident", "serious", "calm", "sarcastic"] as const;
 export type VoiceEmotion = (typeof VOICE_EMOTIONS)[number];
+export const SCENE_ENTRY_VARIANTS = [
+  "slam-from-top",
+  "slam-from-bottom",
+  "slam-from-left",
+  "slam-from-right",
+  "zoom-in",
+  "instant",
+] as const;
+export type SceneEntryVariant = (typeof SCENE_ENTRY_VARIANTS)[number];
 
 export const EMOTION_SPEED_MAP: Record<VoiceEmotion, number> = {
   excited: 1.05,
@@ -126,6 +135,7 @@ export const SPRING = {
 
 const nonEmptyString = z.string().trim().min(1);
 const percentageOrCoordinate = z.string().trim().min(1);
+const hexColor = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Expected hex color like #16425B");
 
 export const PositionSchema = z.object({
   x: percentageOrCoordinate,
@@ -153,6 +163,18 @@ export const VoiceDirectionSchema = z.object({
 });
 
 export type VoiceDirection = z.infer<typeof VoiceDirectionSchema>;
+
+export const ColorPaletteSchema = z.object({
+  name: nonEmptyString,
+  mainBackground: hexColor,
+  primaryText: hexColor,
+  accentColor: hexColor,
+  emphasisColor: hexColor,
+  surfaceColor: hexColor,
+  secondaryColor: hexColor,
+});
+
+export type ColorPalette = z.infer<typeof ColorPaletteSchema>;
 
 export const VisualElementSchema = z.object({
   id: nonEmptyString,
@@ -212,6 +234,7 @@ export const SceneConfigSchema = z.object({
   voiceDirection: VoiceDirectionSchema.optional(),
   wordTimestamps: z.array(WordTimestampSchema).default([]),
   audioDurationSeconds: z.number().nonnegative().default(0),
+  entryVariant: z.enum(SCENE_ENTRY_VARIANTS).optional(),
   visual: VisualConfigSchema,
   character: CharacterSceneConfigSchema.optional(),
   tealElement: TealElementConfigSchema.optional(),
@@ -242,6 +265,9 @@ export const GenerationRequestSchema = z.object({
   mode: z.enum(GENERATION_MODES).default("production"),
   quality: z.enum(QUALITY_MODES).default("production"),
   operator: OperatorOptionsSchema.default({}),
+  videoStyle: z.string().trim().optional(),
+  paletteKey: z.string().trim().optional(),
+  customPalette: ColorPaletteSchema.optional(),
 });
 
 export const GenerationPlanSceneSchema = z.object({
@@ -321,6 +347,12 @@ export const RendererCapabilitiesManifestSchema = z.object({
     }),
   ),
   supportedTransitions: z.record(z.array(nonEmptyString)),
+  syncEngine: z
+    .object({
+      version: z.number(),
+      features: z.array(z.string()),
+    })
+    .optional(),
   limitations: z.array(nonEmptyString),
 });
 
@@ -372,6 +404,9 @@ export const VideoScriptSchema = z
     sarcasm: z.boolean(),
     mode: z.enum(GENERATION_MODES),
     quality: z.enum(QUALITY_MODES),
+    videoStyle: z.string().trim().optional(),
+    paletteKey: z.string().trim().optional(),
+    customPalette: ColorPaletteSchema.optional(),
     scenes: z.array(SceneConfigSchema).min(1),
     audioFile: z.string().trim().optional(),
     audioDurationFrames: z.number().int().positive().optional(),
@@ -457,6 +492,9 @@ export const DEFAULT_GENERATION_REQUEST: GenerationRequest = {
   sarcasm: true,
   mode: "production",
   quality: "production",
+  videoStyle: undefined,
+  paletteKey: undefined,
+  customPalette: undefined,
   operator: {
     dryRun: false,
     skipAudio: false,

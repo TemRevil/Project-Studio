@@ -11,7 +11,7 @@ import { getAudioDurationSeconds } from "./audio";
 const FPS = 30;
 const BUFFER_MS = 50; // visual appears 50ms before word for feel
 const LINGER_FRAMES = 9; // 0.3s linger after audio ends
-const MISTRAL_STT_MODEL = "mistral-small-latest"; // Using available model; upgrade to voxtral-small-2507 when available
+const MISTRAL_STT_MODEL = "voxtral-mini-2507";
 
 // ── Frame conversion math (Appendix C) ──
 
@@ -37,6 +37,56 @@ export interface STTResult {
   words: RawSTTWord[];
 }
 
+const requestTranscription = async (
+  audioPath: string,
+  env: ProjectEnv,
+  responseFormat: "verbose_json" | "json",
+): Promise<STTResult> => {
+  const form = new FormData();
+  form.append("file", fs.createReadStream(audioPath), {
+    filename: path.basename(audioPath),
+    contentType: "audio/mpeg",
+  });
+  form.append("model", MISTRAL_STT_MODEL);
+  form.append("response_format", responseFormat);
+  form.append("language", "en");
+
+  const response = await axios.post(
+    "https://api.mistral.ai/v1/audio/transcriptions",
+    form,
+    {
+      headers: {
+        Authorization: `Bearer ${env.MISTRAL_API_KEY}`,
+        ...form.getHeaders(),
+      },
+      timeout: 60000,
+    }
+  );
+
+  return response.data as STTResult;
+};
+
+const estimateTimestampsFromTranscript = async (
+  audioPath: string,
+  transcript: string | undefined
+): Promise<WordTimestamp[]> => {
+  const words = transcript?.trim().split(/\s+/).filter(Boolean) ?? [];
+  if (words.length === 0) {
+    return [];
+  }
+
+  const duration = await getAudioDurationSeconds(audioPath);
+  const avgWordDuration = duration / words.length;
+
+  return words.map((word, index) => ({
+    word,
+    start: index * avgWordDuration,
+    end: (index + 1) * avgWordDuration,
+    frame: Math.round(index * avgWordDuration * FPS),
+    endFrame: Math.round((index + 1) * avgWordDuration * FPS),
+  }));
+};
+
 export const transcribeSceneAudio = async (
   audioPath: string,
   env: ProjectEnv
@@ -50,28 +100,22 @@ export const transcribeSceneAudio = async (
   }
 
   try {
-    const form = new FormData();
-    form.append("file", fs.createReadStream(audioPath));
-    form.append("model", MISTRAL_STT_MODEL);
-    form.append("response_format", "verbose_json");
-    form.append("timestamp_granularities", "word");
+    let data: STTResult;
+    try {
+      data = await requestTranscription(audioPath, env, "verbose_json");
+    } catch (verboseError) {
+      console.warn(
+        `Verbose STT transcription failed for ${path.basename(audioPath)}, retrying with json fallback.`,
+        verboseError instanceof Error ? verboseError.message : verboseError
+      );
+      data = await requestTranscription(audioPath, env, "json");
+    }
 
-    const response = await axios.post(
-      "https://api.mistral.ai/v1/audio/transcriptions",
-      form,
-      {
-        headers: {
-          Authorization: `Bearer ${env.MISTRAL_API_KEY}`,
-          ...form.getHeaders(),
-        },
-        timeout: 60000,
-      }
-    );
-
-    const data = response.data;
     const words: RawSTTWord[] = data.words ?? [];
+    if (words.length === 0) {
+      return estimateTimestampsFromTranscript(audioPath, data.text);
+    }
 
-    // Convert to WordTimestamp with frame info
     return words.map((w) => ({
       word: w.word,
       start: w.start,
@@ -85,20 +129,7 @@ export const transcribeSceneAudio = async (
       `STT transcription failed for ${path.basename(audioPath)}, using estimation fallback.`,
       error instanceof Error ? error.message : error
     );
-    return estimateTimestamps(audioPath);
-  }
-};
-
-// ── Fallback: Estimate timestamps when STT is unavailable ──
-
-const estimateTimestamps = async (audioPath: string): Promise<WordTimestamp[]> => {
-  try {
-    const duration = await getAudioDurationSeconds(audioPath);
-    // We don't have the narration text here, so return empty
-    // The caller should handle empty timestamps gracefully
-    return [];
-  } catch {
-    return [];
+    return estimateTimestampsFromTranscript(audioPath, undefined);
   }
 };
 

@@ -16,6 +16,25 @@ export interface RenderOptions {
   onProgress?: (progress: RenderProgress) => void;
 }
 
+const applyLowMemoryFfmpegArgs = (args: string[]) => {
+  const compactArgs: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "-threads") {
+      index += 1;
+      continue;
+    }
+    compactArgs.push(arg);
+  }
+
+  const outputArg = compactArgs.pop();
+  if (!outputArg) {
+    return args;
+  }
+
+  return [...compactArgs, "-threads", "1", outputArg];
+};
+
 const buildRuntimeMedia = (projectRoot: string, script: VideoScript): RuntimeMedia => {
   const runtime: RuntimeMedia = {
     sceneNarrationFiles: {},
@@ -46,7 +65,10 @@ const buildRuntimeMedia = (projectRoot: string, script: VideoScript): RuntimeMed
   });
 
   if (script.backgroundMusic?.file) {
-    runtime.backgroundMusicFile = script.backgroundMusic.file;
+    const absoluteMusicPath = path.join(projectRoot, "attachments", script.backgroundMusic.file);
+    if (fs.existsSync(absoluteMusicPath)) {
+      runtime.backgroundMusicFile = script.backgroundMusic.file;
+    }
   }
 
   return RuntimeMediaSchema.parse(runtime);
@@ -102,13 +124,21 @@ export const renderVideoPackage = async ({ projectRoot, script, onProgress }: Re
       composition,
       serveUrl,
       codec: "h264",
-      concurrency: 2,
+      concurrency: 1,
+      disallowParallelEncoding: true,
       outputLocation,
       inputProps: {
         script: parsedScript,
         runtimeMedia,
       },
       onProgress: ({ progress }) => onProgress?.({ stage: "Rendering video", progress }),
+      chromiumOptions: {
+        disableWebSecurity: false,
+        gl: "angle",
+      },
+      jpegQuality: 80,
+      x264Preset: "ultrafast",
+      ffmpegOverride: ({ type, args }) => (type === "stitcher" ? applyLowMemoryFfmpegArgs(args) : args),
     });
 
     return {

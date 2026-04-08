@@ -4,7 +4,8 @@
   "type": "module",
   "description": "Project Studio 1.0 — Temy's AI video production system",
   "scripts": {
-    "start": "remotion studio",
+    "start": "remotion studio src/Root.tsx",
+    "preview": "remotion studio src/Root.tsx",
     "studio": "tsx src/studio-main.mts",
     "generate": "tsx src/cli.tsx generate",
     "render": "tsx src/cli.tsx render",

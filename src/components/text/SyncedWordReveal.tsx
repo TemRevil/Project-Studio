@@ -1,8 +1,9 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate } from "remotion";
 import { spring } from "remotion";
-import { COLORS, SPRING } from "../../runtime";
+import { SPRING, toRgba } from "../../runtime";
 import type { WordTimestamp } from "../../runtime";
+import { usePaletteColors } from "../ui/PaletteTheme";
 
 interface SyncedWordRevealProps {
   timestamps: WordTimestamp[];
@@ -22,14 +23,17 @@ interface SyncedWordRevealProps {
  */
 export const SyncedWordReveal = ({
   timestamps,
-  highlightColor = COLORS.sky,
+  highlightColor,
   fontSize = 26,
   fontWeight = 600,
-  color = COLORS.smoke,
+  color,
   style,
 }: SyncedWordRevealProps) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const colors = usePaletteColors();
+  const resolvedHighlight = highlightColor ?? colors.sky;
+  const resolvedColor = color ?? colors.smoke;
 
   if (!timestamps || timestamps.length === 0) return null;
 
@@ -69,7 +73,7 @@ export const SyncedWordReveal = ({
             style={{
               display: "inline-block",
               opacity,
-              color: isActive ? highlightColor : color,
+              color: isActive ? resolvedHighlight : resolvedColor,
               transform: `translateY(${translateY}px)`,
               marginRight: "0.22em",
               transition: "color 0.1s ease",
@@ -99,6 +103,7 @@ export const SyncedNarrationOverlay = ({
   sceneDuration: number;
 }) => {
   const frame = useCurrentFrame();
+  const colors = usePaletteColors();
 
   if (!timestamps || timestamps.length === 0) return null;
 
@@ -129,12 +134,12 @@ export const SyncedNarrationOverlay = ({
       <div
         style={{
           display: "inline-block",
-          backgroundColor: "rgba(231,231,231,0.90)",
+          backgroundColor: toRgba(colors.cream, 0.9),
           backdropFilter: "blur(4px)",
           borderRadius: 12,
           padding: format === "reel" ? "14px 22px" : "12px 20px",
-          boxShadow: "0px 4px 20px rgba(22,66,91,0.15)",
-          border: "1.5px solid rgba(213,197,200,0.5)",
+          boxShadow: `0px 4px 20px ${toRgba(colors.navy, 0.15)}`,
+          border: `1.5px solid ${toRgba(colors.mauve, 0.5)}`,
           maxWidth: "100%",
         }}
       >

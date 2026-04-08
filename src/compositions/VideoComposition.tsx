@@ -1,11 +1,13 @@
 import { AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from "remotion";
 import { SceneRenderer }  from "../components/scene/SceneRenderer";
 import { BrandMark, PaperTexture, OutroFade, CinematicVignette, FilmGrain } from "../components/ui/index";
-import { COLORS } from "../runtime";
 import type { RuntimeMedia, VideoScript } from "../runtime";
+import { usePaletteColors } from "../components/ui/PaletteTheme";
+import { PaletteThemeProvider } from "../components/ui/PaletteTheme";
 
-export const VideoComposition = ({ script, runtimeMedia }: { script: VideoScript; runtimeMedia?: RuntimeMedia }) => {
+const VideoCompositionInner = ({ script, runtimeMedia }: { script: VideoScript; runtimeMedia?: RuntimeMedia }) => {
   const { fps } = useVideoConfig();
+  const colors = usePaletteColors();
   const isKinetic = script.type === "kinetic";
   const narrationFile = runtimeMedia?.narrationFile;
   const musicFile = runtimeMedia?.backgroundMusicFile ?? script.backgroundMusic?.file;
@@ -14,7 +16,7 @@ export const VideoComposition = ({ script, runtimeMedia }: { script: VideoScript
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: isKinetic ? COLORS.navy : COLORS.smoke,
+        backgroundColor: isKinetic ? colors.navy : colors.smoke,
         fontFamily: "'DM Sans', system-ui, sans-serif",
         overflow: "hidden",
       }}
@@ -29,13 +31,14 @@ export const VideoComposition = ({ script, runtimeMedia }: { script: VideoScript
         <Audio src={staticFile(musicFile)} volume={musicVolume} />
       )}
 
-      {script.scenes.map((scene) => {
+      {script.scenes.map((scene, sceneIndex) => {
         const startFrame = Math.round(scene.startSecond * fps);
         const endFrame   = Math.round(scene.endSecond   * fps);
         return (
           <Sequence key={scene.id} from={startFrame} durationInFrames={endFrame - startFrame}>
             <SceneRenderer
               scene={scene}
+              sceneIndex={sceneIndex}
               format={script.format}
               videoType={script.type}
               sceneDuration={endFrame - startFrame}
@@ -50,5 +53,26 @@ export const VideoComposition = ({ script, runtimeMedia }: { script: VideoScript
       <FilmGrain opacity={isKinetic ? 0.08 : 0.04} />
       <OutroFade totalFrames={script.durationSeconds * fps} isDark={isKinetic} />
     </AbsoluteFill>
+  );
+};
+
+export const VideoComposition = ({
+  script,
+  runtimeMedia,
+  paletteKey,
+  customPalette,
+}: {
+  script: VideoScript;
+  runtimeMedia?: RuntimeMedia;
+  paletteKey?: string;
+  customPalette?: VideoScript["customPalette"];
+}) => {
+  return (
+    <PaletteThemeProvider
+      paletteKey={paletteKey ?? script.paletteKey}
+      customPalette={customPalette ?? script.customPalette}
+    >
+      <VideoCompositionInner script={script} runtimeMedia={runtimeMedia} />
+    </PaletteThemeProvider>
   );
 };

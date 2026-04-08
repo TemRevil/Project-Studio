@@ -1,9 +1,10 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate } from "remotion";
 import { spring } from "remotion";
-import { COLORS, SPRING, FORMAT_CONFIG } from "../../runtime";
+import { FORMAT_CONFIG, SPRING, toRgba } from "../../runtime";
 import type { VideoFormat, WordTimestamp } from "../../runtime";
 import { SyncedWordReveal } from "./SyncedWordReveal";
+import { usePaletteColors } from "../ui/PaletteTheme";
 
 function splitLines(text: string, maxChars: number): string[] {
   const words = text.split(" ");
@@ -50,6 +51,7 @@ export const NarrationOverlay = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const fmt = FORMAT_CONFIG[format];
+  const colors = usePaletteColors();
   const fadeOutStart = sceneDuration - 10;
   const entry = spring({ frame: frame - (startFrame - 4), fps, config: SPRING.soft });
   const exitOpacity = interpolate(frame, [fadeOutStart, fadeOutStart + 8], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
@@ -61,7 +63,7 @@ export const NarrationOverlay = ({
 
   return (
     <div style={{ position: "absolute", bottom: bottomPos, left: fmt.safeHorizontal, right: fmt.safeHorizontal + 60, opacity: hasTimestamps ? (frame > fadeOutStart ? exitOpacity : 1) : containerOpacity, zIndex: 20 }}>
-      <div style={{ display: "inline-block", backgroundColor: "rgba(231,231,231,0.90)", backdropFilter: "blur(4px)", borderRadius: 12, padding: format === "reel" ? "14px 22px" : "12px 20px", boxShadow: "0px 4px 20px rgba(22,66,91,0.15)", border: "1.5px solid rgba(213,197,200,0.5)", maxWidth: "100%" }}>
+      <div style={{ display: "inline-block", backgroundColor: toRgba(colors.cream, 0.9), backdropFilter: "blur(4px)", borderRadius: 12, padding: format === "reel" ? "14px 22px" : "12px 20px", boxShadow: `0px 4px 20px ${toRgba(colors.navy, 0.15)}`, border: `1.5px solid ${toRgba(colors.mauve, 0.5)}`, maxWidth: "100%" }}>
         {hasTimestamps ? (
           <SyncedWordReveal timestamps={wordTimestamps} />
         ) : (

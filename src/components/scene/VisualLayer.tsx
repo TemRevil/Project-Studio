@@ -2,8 +2,9 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, staticFile, Img } from "
 import { spring, interpolate, delayRender, continueRender } from "remotion";
 import { Lottie } from "@remotion/lottie";
 import React, { useEffect, useState } from "react";
-import { COLORS, SHADOWS, SPRING } from "../../runtime";
+import { SPRING } from "../../runtime";
 import type { VisualConfig, TealElementConfig, VideoFormat } from "../../runtime";
+import { usePaletteTheme } from "../ui/PaletteTheme";
 
 const LottieLoader = ({ file, style }: { file: string; style?: React.CSSProperties }) => {
   const [data, setData] = useState<any>(null);
@@ -29,6 +30,7 @@ const LottieLoader = ({ file, style }: { file: string; style?: React.CSSProperti
 export const VisualLayer = ({ visual, tealElement }: { visual: VisualConfig; format: VideoFormat; tealElement?: TealElementConfig }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const { colors, shadows } = usePaletteTheme();
 
   return (
     <AbsoluteFill>
@@ -48,8 +50,8 @@ export const VisualLayer = ({ visual, tealElement }: { visual: VisualConfig; for
         const finalRotate = el.rotate || 0;
 
         const isTealActive = el.isTeal && tealElement && frame >= tealElement.appearsAtFrame;
-        const color = isTealActive ? COLORS.sky : COLORS.kraft;
-        const textColor = isTealActive ? COLORS.sky : COLORS.darkText;
+        const color = isTealActive ? colors.sky : colors.kraft;
+        const textColor = isTealActive ? colors.sky : colors.darkText;
 
         return (
           <div 
@@ -64,28 +66,28 @@ export const VisualLayer = ({ visual, tealElement }: { visual: VisualConfig; for
             }}
           >
             {el.kind === "lantern" && (
-              <div style={{ width: 140, height: 140, borderRadius: "20px 20px 60% 60%", backgroundColor: COLORS.offWhite, boxShadow: isTealActive ? `0 0 0 3px ${COLORS.sky}, ${SHADOWS.sky}` : SHADOWS.card, border: `3px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8 }}>
+              <div style={{ width: 140, height: 140, borderRadius: "20px 20px 60% 60%", backgroundColor: colors.offWhite, boxShadow: isTealActive ? `0 0 0 3px ${colors.sky}, ${shadows.sky}` : shadows.card, border: `3px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8 }}>
                 <span style={{ fontSize: 36 }}>✦</span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: textColor, letterSpacing: "-0.02em" }}>{el.label}</span>
               </div>
             )}
             {el.kind === "library" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                {[0,1,2].map(i => <div key={i} style={{ width: 110 - i * 10, height: 22, backgroundColor: i === 0 ? COLORS.kraft : COLORS.smoke, borderRadius: 4, boxShadow: SHADOWS.light, border: `1.5px solid ${COLORS.mauve}` }} />)}
-                {el.label && <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.darkText, marginTop: 6 }}>{el.label}</span>}
+                {[0,1,2].map(i => <div key={i} style={{ width: 110 - i * 10, height: 22, backgroundColor: i === 0 ? colors.kraft : colors.smoke, borderRadius: 4, boxShadow: shadows.light, border: `1.5px solid ${colors.mauve}` }} />)}
+                {el.label && <span style={{ fontSize: 13, fontWeight: 600, color: colors.darkText, marginTop: 6 }}>{el.label}</span>}
               </div>
             )}
             {el.kind === "thread" && (
-              <div style={{ width: interpolate(entry, [0, 1], [0, 200]), height: 4, backgroundColor: COLORS.sky, borderRadius: 2, boxShadow: SHADOWS.sky }} />
+              <div style={{ width: interpolate(entry, [0, 1], [0, 200]), height: 4, backgroundColor: colors.sky, borderRadius: 2, boxShadow: shadows.sky }} />
             )}
             {el.kind === "label" && (
-              <div style={{ backgroundColor: COLORS.offWhite, borderRadius: 10, padding: "14px 24px", boxShadow: SHADOWS.card, border: `2px solid ${color}` }}>
+              <div style={{ backgroundColor: colors.offWhite, borderRadius: 10, padding: "14px 24px", boxShadow: shadows.card, border: `2px solid ${color}` }}>
                 <span style={{ fontSize: 32, fontWeight: 700, color: textColor, letterSpacing: "-0.02em" }}>{el.label}</span>
               </div>
             )}
             {el.kind === "card" && (
-              <div style={{ backgroundColor: COLORS.offWhite, borderRadius: 12, padding: "20px 28px", boxShadow: SHADOWS.card, border: `1.5px solid ${COLORS.kraft}`, maxWidth: 260 }}>
-                <span style={{ fontSize: 18, fontWeight: 500, color: COLORS.darkText, lineHeight: 1.4 }}>{el.label}</span>
+              <div style={{ backgroundColor: colors.offWhite, borderRadius: 12, padding: "20px 28px", boxShadow: shadows.card, border: `1.5px solid ${colors.kraft}`, maxWidth: 260 }}>
+                <span style={{ fontSize: 18, fontWeight: 500, color: colors.darkText, lineHeight: 1.4 }}>{el.label}</span>
               </div>
             )}
             {el.kind === "icon" && el.label && (
@@ -94,7 +96,7 @@ export const VisualLayer = ({ visual, tealElement }: { visual: VisualConfig; for
               </div>
             )}
             {el.kind === "image" && el.label && (
-              <div style={{ borderRadius: 20, overflow: "hidden", boxShadow: SHADOWS.card, border: `4px solid ${COLORS.offWhite}` }}>
+              <div style={{ borderRadius: 20, overflow: "hidden", boxShadow: shadows.card, border: `4px solid ${colors.offWhite}` }}>
                 <Img src={staticFile(el.label)} style={{ width: 400, height: "auto" }} />
               </div>
             )}

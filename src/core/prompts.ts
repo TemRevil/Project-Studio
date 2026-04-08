@@ -1,10 +1,11 @@
 import type { AssetManifest, GenerationPlan, GenerationRequest, RendererCapabilitiesManifest, RulesDigest } from "../types";
+import { resolveColorPalette, resolveVideoStyle } from "../studio/presets";
 
 const section = (title: string, body: string) => [`## ${title}`, body.trim()].join("\n");
 
 const toJson = (value: unknown) => JSON.stringify(value, null, 2);
 
-// ── The 8 Lens Skills (injected into every prompt) ──
+// ── The 9 Lens Skills (injected into every prompt) ──
 
 const SKILL_1_ASSET_AWARENESS = `
 ### SKILL 1 — ASSET AWARENESS
@@ -89,6 +90,61 @@ If a requested visual cannot be produced with available Remotion components:
 Never approximate a complex effect without flagging it.
 `.trim();
 
+const SKILL_9_REAL_CONTENT = `
+### SKILL 9 — REAL CONTENT CREATION (MOST IMPORTANT)
+
+You are creating SHORT-FORM EDUCATIONAL CONTENT for developers and tech people.
+The person watching has maybe 30 seconds. Every word has to EARN ITS PLACE.
+
+THE GOLDEN RULE: If someone asks "What is RAG?", write what RAG ACTUALLY IS.
+Not "RAG is important." Not "RAG looks simple."
+ACTUAL CONTENT: what it does, why it matters, the one thing that makes it click.
+
+HOOK FORMULA (scene 1 MUST follow this):
+Pick one of these proven formats:
+- CONTRADICTION: "Your LLM memorized the internet. It still doesn't know what happened last Tuesday."
+- PROBLEM FIRST: "Every LLM hallucinates. RAG is the only known fix that actually works."
+- SURPRISING FACT: "The model isn't getting smarter. It's getting a library card."
+- DIRECT CHALLENGE: "You've been using AI wrong. Here's why."
+
+SCENE CONTENT RULES:
+Scene 1 → Hook (makes viewer stop scrolling — 5 seconds max)
+Scene 2 → Problem (here's why this matters or hurts)
+Scene 3 → Solution (here's the fix — the core concept)
+Scene 4 → How it works (one mechanism, explained simply)
+Scene 5 → Why it matters (the payoff — the so what)
+
+NARRATION WRITING RULES:
+1. Write like you're explaining to a smart friend, not a classroom
+2. Use concrete nouns: "database", "LLM", "query" — not "the system", "it", "this"
+3. Every scene narration should be completable with a specific visual
+4. Never use passive voice in narration
+5. If it sounds like a textbook: rewrite it
+6. The last scene MUST be a closed observation, not a call to action
+
+BANNED CONTENT:
+- "It's important to understand..."
+- Generic filler phrases
+- Lists that could be in any video ("First... Second... Third...")
+- Anything that could apply to ANY topic (not specific to the user's topic)
+- Abstract descriptions with no concrete anchor
+
+EXAMPLE — Good vs Bad:
+
+Topic: "What is RAG"
+BAD Scene 1: "RAG stands for Retrieval-Augmented Generation. It's important in AI."
+GOOD Scene 1: "Your LLM finished training in 2023. It has no idea what happened since."
+
+BAD Scene 2: "RAG solves the problem of hallucination."
+GOOD Scene 2: "It hallucinates because it's guessing. RAG stops the guessing."
+
+BAD Scene 3: "RAG retrieves relevant information."
+GOOD Scene 3: "Before answering, it searches your data. Then it reads. Then it talks."
+
+GOOD PUNCHLINE (last scene):
+"The model didn't get smarter. You gave it a library card."
+`.trim();
+
 const ALL_SKILLS = [
   SKILL_1_ASSET_AWARENESS,
   SKILL_2_NARRATION_QUALITY,
@@ -98,6 +154,7 @@ const ALL_SKILLS = [
   SKILL_6_KINETIC_ARCHITECTURE,
   SKILL_7_MOTION_ARCHITECTURE,
   SKILL_8_COMPLEXITY_HONESTY,
+  SKILL_9_REAL_CONTENT,
 ].join("\n\n");
 
 // ── Plan prompt ──
@@ -113,6 +170,9 @@ export const buildPlanPrompt = ({
   assets: AssetManifest;
   rules: RulesDigest;
 }) => {
+  const palette = resolveColorPalette(request.paletteKey, request.customPalette);
+  const style = resolveVideoStyle(request.videoStyle);
+
   return [
     "You are Lens, the production planner for Project Studio.",
     "Your job is to create a production-safe scene plan that only uses renderer capabilities that exist today.",
@@ -121,6 +181,42 @@ export const buildPlanPrompt = ({
     "",
     section("Skills (follow these exactly)", ALL_SKILLS),
     section("Request", toJson(request)),
+    section(
+      "TopicContext",
+      `
+The topic is: "${request.topic}"
+
+Before generating, think:
+1. What is the single most important thing to know about this topic?
+2. What is the common WRONG ASSUMPTION people have about this topic?
+3. What is the simplest real-world analogy that explains it?
+4. What is the "aha moment" — the one insight that makes it click?
+
+Build your script around the AAAA moment. Everything else serves that moment.
+      `,
+    ),
+    section(
+      "VideoStyle",
+      `
+Active style: "${style.name}"
+Tone: ${style.toneHint}
+Pacing: ${style.pacingHint}
+      `,
+    ),
+    section(
+      "ActiveColorPalette",
+      `
+The active color palette for this video is: "${palette.name}"
+- Main background (kinetic dark bg): ${palette.mainBackground}
+- Primary text (on dark): ${palette.primaryText}
+- Accent color (ONE element per scene): ${palette.accentColor}
+- Emphasis color (ONE per video): ${palette.emphasisColor}
+- Surface color (cards, light bg): ${palette.surfaceColor}
+- Secondary color (borders, mid-layer): ${palette.secondaryColor}
+
+IMPORTANT: Use these exact hex values in the JSON. Never use palette nicknames in the output.
+      `,
+    ),
     section("RendererCapabilitiesManifest", toJson(capabilities)),
     section("AssetManifest", toJson(assets)),
     section("RulesDigest", toJson(rules)),
@@ -185,6 +281,9 @@ export const buildScriptPrompt = ({
   assets: AssetManifest;
   rules: RulesDigest;
 }) => {
+  const palette = resolveColorPalette(request.paletteKey, request.customPalette);
+  const style = resolveVideoStyle(request.videoStyle);
+
   return [
     "You are Lens, the production script generator for Project Studio.",
     "Return ONLY valid JSON with exact fields and safe values.",
@@ -192,10 +291,81 @@ export const buildScriptPrompt = ({
     "",
     section("Skills (follow these exactly)", ALL_SKILLS),
     section("Request", toJson(request)),
+    section(
+      "TopicContext",
+      `
+The topic is: "${request.topic}"
+
+Before generating, think:
+1. What is the single most important thing to know about this topic?
+2. What is the common WRONG ASSUMPTION people have about this topic?
+3. What is the simplest real-world analogy that explains it?
+4. What is the "aha moment" — the one insight that makes it click?
+
+Build your script around the AAAA moment. Everything else serves that moment.
+      `,
+    ),
+    section(
+      "VideoStyle",
+      `
+Active style: "${style.name}"
+Tone: ${style.toneHint}
+Pacing: ${style.pacingHint}
+      `,
+    ),
+    section(
+      "ActiveColorPalette",
+      `
+The active color palette for this video is: "${palette.name}"
+- Main background (kinetic dark bg): ${palette.mainBackground}
+- Primary text (on dark): ${palette.primaryText}
+- Accent color (ONE element per scene): ${palette.accentColor}
+- Emphasis color (ONE per video): ${palette.emphasisColor}
+- Surface color (cards, light bg): ${palette.surfaceColor}
+- Secondary color (borders, mid-layer): ${palette.secondaryColor}
+
+IMPORTANT: Use these exact hex values in the JSON. Never use palette nicknames in the output.
+      `,
+    ),
     section("ApprovedPlan", toJson(plan)),
     section("RendererCapabilitiesManifest", toJson(capabilities)),
     section("AssetManifest", toJson(assets)),
     section("RulesDigest", toJson(rules)),
+    section(
+      "Example of good content (follow this pattern)",
+      `
+Topic: "What is RAG"
+
+Scene 1 (Hook):
+  narration: "Your LLM finished training in 2023. It has no idea what happened since."
+  emotion: "sarcastic"
+  hero: "Training cutoff."
+  support: "It stopped learning the day it launched."
+
+Scene 2 (Problem):
+  narration: "So when you ask about recent events, it guesses. Confidently."
+  emotion: "serious"
+  hero: "Confident."
+  support: "Also completely wrong."
+
+Scene 3 (Solution):
+  narration: "RAG fixes that. Before answering, it searches your docs first."
+  emotion: "confident"
+  hero: "Search first."
+  support: "Then answer."
+
+Scene 4 (Mechanism):
+  narration: "Query goes in. Database lookup happens. Relevant chunks go back to the LLM."
+  emotion: "calm"
+  flow: "Query → Vector DB → Context → LLM → Answer"
+
+Scene 5 (Punchline):
+  narration: "The model didn't get smarter. You gave it a library card."
+  emotion: "sarcastic"
+  hero: "Library card."
+  support: "That's it. That's RAG."
+      `,
+    ),
     section(
       "Output requirements",
       [

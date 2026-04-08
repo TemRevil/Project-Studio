@@ -1,12 +1,14 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate, staticFile } from "remotion";
-import { COLORS, FORMAT_CONFIG, SPRING } from "../../runtime";
+import { FORMAT_CONFIG, SPRING } from "../../runtime";
 import type { VideoFormat } from "../../runtime";
+import { usePaletteColors } from "./PaletteTheme";
 
 // ── BrandMark — The persistent series logo/mark
 export const BrandMark = ({ format, isDark = false }: { format: VideoFormat; isDark?: boolean }) => {
   const fmt = FORMAT_CONFIG[format];
   const bottom = format === "reel" ? 220 : 48;
+  const colors = usePaletteColors();
   
   return (
     <div
@@ -20,8 +22,8 @@ export const BrandMark = ({ format, isDark = false }: { format: VideoFormat; isD
         gap: 8,
       }}
       >
-        <div style={{ width: 12, height: 12, borderRadius: "50%", backgroundColor: COLORS.sky }} />
-        <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "0.2em", color: isDark ? COLORS.smoke : COLORS.navy, textTransform: "uppercase" }}>
+        <div style={{ width: 12, height: 12, borderRadius: "50%", backgroundColor: colors.sky }} />
+        <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "0.2em", color: isDark ? colors.smoke : colors.navy, textTransform: "uppercase" }}>
           PROJECT STUDIO
         </span>
       </div>
@@ -48,6 +50,7 @@ export const PaperTexture = () => {
 // ── OutroFade — Vignette or simple fade out
 export const OutroFade = ({ totalFrames, isDark = false }: { totalFrames: number; isDark?: boolean }) => {
   const frame = useCurrentFrame();
+  const colors = usePaletteColors();
   const opacity = interpolate(frame, [totalFrames - 15, totalFrames - 2], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
@@ -57,7 +60,7 @@ export const OutroFade = ({ totalFrames, isDark = false }: { totalFrames: number
     <AbsoluteFill
       style={{
         pointerEvents: "none",
-        backgroundColor: isDark ? COLORS.navy : COLORS.smoke,
+        backgroundColor: isDark ? colors.navy : colors.smoke,
         opacity,
       }}
     />
@@ -100,11 +103,13 @@ export const FilmGrain = ({ opacity = 0.05 }: { opacity?: number }) => {
 };
 
 // ── WordReveal — Staggered text reveal for narration
-export const WordReveal = ({ text, startFrame, framesPerWord = 3, color = COLORS.navy }: { 
-  text: string; startFrame: number; framesPerWord?: number; color?: string 
+export const WordReveal = ({ text, startFrame, framesPerWord = 3, color }: {
+  text: string; startFrame: number; framesPerWord?: number; color?: string
 }) => {
   const frame = useCurrentFrame();
   const words = text.split(" ");
+  const colors = usePaletteColors();
+  const resolvedColor = color ?? colors.navy;
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", rowGap: 8, columnGap: 12 }}>
@@ -121,7 +126,7 @@ export const WordReveal = ({ text, startFrame, framesPerWord = 3, color = COLORS
               transform: `translateY(${translateY}px)`,
               fontSize: 32,
               fontWeight: 700,
-              color,
+               color: resolvedColor,
               lineHeight: 1.2
             }}
           >

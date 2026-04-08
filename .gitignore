@@ -1,9 +1,25 @@
 node_modules/
-output/
 .env
+.project-studio/
+
+# Error traces and debug logs
+*_trace.json
+mistral_error.json
+error_*.json
+*.log
+*.error.json
+
+# Runtime and temp files
+attachments/runtime/
+output/
 .remotion/
+
+# Videos and audio outputs
+videos/
 *.mp4
 *.mp3
-videos/
-attachments/runtime/
-.project-studio/
+
+# IDE
+.cursor/
+.windsurf/
+.vscode/

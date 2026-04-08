@@ -6,7 +6,6 @@ import axios from "axios";
 import { RenderInternals } from "@remotion/renderer";
 import type { ProjectEnv } from "./env";
 import type { VideoScript, SceneConfig, VoiceDirection } from "../types";
-import { EMOTION_SPEED_MAP, type VoiceEmotion } from "../types";
 import { ProviderFailure } from "./errors";
 import { ensureDir, getSceneVoicePath, toProjectRelativePath } from "./storage";
 
@@ -20,30 +19,42 @@ const VOICE_MAP: Record<string, string> = {
   Leila: "b2c1225e-917b-42a9-b59d-3a1ad7c42f86",
 };
 
-// ── Voice direction → TTS parameters ──
-
-const resolveSpeed = (scene: SceneConfig): number => {
-  // Priority: explicit voiceDirection.speed > emotion mapping > scene.speed > 1.0
-  if (scene.voiceDirection?.speed && scene.voiceDirection.speed !== 1.0) {
-    return scene.voiceDirection.speed;
-  }
-  if (scene.voiceDirection?.emotion) {
-    return EMOTION_SPEED_MAP[scene.voiceDirection.emotion as VoiceEmotion] ?? 1.0;
-  }
-  return scene.speed ?? 1.0;
-};
-
 const applyPunctuationForEmotion = (text: string, direction?: VoiceDirection): string => {
-  if (!direction) return text;
+  if (!direction) {
+    return text;
+  }
 
   let narration = text;
 
-  // Add pauses through punctuation control
-  if (direction.pauseBeforeMs > 0) {
-    narration = "... " + narration;
+  switch (direction.emotion) {
+    case "sarcastic":
+      narration = narration.replace(/\. /g, "... ");
+      break;
+    case "serious":
+      narration = narration.replace(/,/g, ".");
+      break;
+    case "excited":
+      narration = narration.replace(/\.\.\./g, ".");
+      break;
+    case "calm":
+      if (!narration.includes(",")) {
+        const words = narration.split(" ");
+        if (words.length > 5) {
+          const mid = Math.floor(words.length / 2);
+          words[mid] = `${words[mid]},`;
+          narration = words.join(" ");
+        }
+      }
+      break;
+    default:
+      break;
+  }
+
+  if (direction.pauseBeforeMs > 200) {
+    narration = `... ${narration}`;
   }
   if (direction.pauseAfterMs > 200) {
-    narration = narration + " ...";
+    narration = `${narration.trimEnd()} ...`;
   }
 
   return narration;
@@ -67,9 +78,6 @@ export const generateSceneAudio = async (
     voiceConfig ||
     env.MISTRAL_VOICE_ID ||
     "b2c1225e-917b-42a9-b59d-3a1ad7c42f86";
-
-  // Resolve speed from voice direction
-  const speed = resolveSpeed(scene);
 
   // Apply emotional punctuation
   const narrationText = applyPunctuationForEmotion(scene.narration, scene.voiceDirection);
@@ -99,7 +107,6 @@ export const generateSceneAudio = async (
     return outputPath;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response) {
-      fs.writeFileSync("mistral_error.json", JSON.stringify(error.response.data, null, 2));
       console.error("Mistral TTS API Error Response:", JSON.stringify(error.response.data, null, 2));
     }
     throw new ProviderFailure(`Scene ${scene.id} TTS failed: ${error instanceof Error ? error.message : String(error)}`);

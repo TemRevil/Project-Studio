@@ -16,6 +16,12 @@ export interface ProviderStatus extends ProviderDescriptor {
   reason?: string;
 }
 
+export interface ProviderModelOption extends ProviderDescriptor {
+  label: string;
+  description: string;
+  source: "api" | "fallback";
+}
+
 interface PromptExecutionOptions<T> {
   env: ProjectEnv;
   config: StudioConfig;
@@ -23,6 +29,134 @@ interface PromptExecutionOptions<T> {
   prompt: string;
   schema: ZodType<T>;
 }
+
+interface ModelRule {
+  pattern: RegExp;
+  label: string;
+  reason: string;
+  fallbackId: string;
+}
+
+const CAPABLE_MODEL_RULES: Record<ProviderName, ModelRule[]> = {
+  gemini: [
+    {
+      pattern: /^gemini-3\.1-pro-preview-customtools$/i,
+      label: "Gemini 3.1 Pro Preview Custom Tools",
+      reason: "Large-context preview model with strong repo reasoning and tool-oriented planning.",
+      fallbackId: "gemini-3.1-pro-preview-customtools",
+    },
+    {
+      pattern: /^gemini-3\.1-pro-preview$/i,
+      label: "Gemini 3.1 Pro Preview",
+      reason: "Large-context preview model for deep repo understanding and structured output.",
+      fallbackId: "gemini-3.1-pro-preview",
+    },
+    {
+      pattern: /^gemini-3-pro-preview$/i,
+      label: "Gemini 3 Pro Preview",
+      reason: "Strong preview model for complex planning, repair prompts, and longer project context.",
+      fallbackId: "gemini-3-pro-preview",
+    },
+    {
+      pattern: /^gemini-pro-latest$/i,
+      label: "Gemini Pro Latest",
+      reason: "Latest general-purpose Gemini Pro line with long context.",
+      fallbackId: "gemini-pro-latest",
+    },
+    {
+      pattern: /^gemini-2\.5-pro$/i,
+      label: "Gemini 2.5 Pro",
+      reason: "Best stable Gemini option for longer prompts, repairs, and deeper reasoning.",
+      fallbackId: "gemini-2.5-pro",
+    },
+    {
+      pattern: /^gemini-3-flash-preview$/i,
+      label: "Gemini 3 Flash Preview",
+      reason: "Fast preview model with large context for structured drafts.",
+      fallbackId: "gemini-3-flash-preview",
+    },
+    {
+      pattern: /^gemini-flash-latest$/i,
+      label: "Gemini Flash Latest",
+      reason: "Latest fast Gemini text model with long context.",
+      fallbackId: "gemini-flash-latest",
+    },
+    {
+      pattern: /^gemini-2\.5-flash$/i,
+      label: "Gemini 2.5 Flash",
+      reason: "Fast stable Gemini model for structured JSON drafts and planning.",
+      fallbackId: "gemini-2.5-flash",
+    },
+    {
+      pattern: /^gemini-2\.0-flash(?:-001)?$/i,
+      label: "Gemini 2.0 Flash",
+      reason: "Older but still capable long-context fallback.",
+      fallbackId: "gemini-2.0-flash",
+    },
+    {
+      pattern: /^gemma-4-31b-it$/i,
+      label: "Gemma 4 31B IT",
+      reason: "Large instruction-tuned Gemma model with enough context for this project.",
+      fallbackId: "gemma-4-31b-it",
+    },
+    {
+      pattern: /^gemma-4-26b-a4b-it$/i,
+      label: "Gemma 4 26B A4B IT",
+      reason: "Large Gemma model that can handle repo-aware structured generation.",
+      fallbackId: "gemma-4-26b-a4b-it",
+    },
+    {
+      pattern: /^gemma-3-27b-it$/i,
+      label: "Gemma 3 27B IT",
+      reason: "Capable Gemma fallback with larger context than the smaller Gemma 3 variants.",
+      fallbackId: "gemma-3-27b-it",
+    },
+  ],
+  openrouter: [
+    {
+      pattern: /^anthropic\/claude-sonnet-4/i,
+      label: "Claude Sonnet 4",
+      reason: "Strong repo reasoning, prompt following, and clean structured output.",
+      fallbackId: "anthropic/claude-sonnet-4",
+    },
+    {
+      pattern: /^anthropic\/claude-3\.7-sonnet/i,
+      label: "Claude 3.7 Sonnet",
+      reason: "Reliable long-context reasoning for multi-step video prompts.",
+      fallbackId: "anthropic/claude-3.7-sonnet",
+    },
+    {
+      pattern: /^openai\/gpt-5/i,
+      label: "GPT-5",
+      reason: "Very strong code and structured-generation model when available.",
+      fallbackId: "openai/gpt-5",
+    },
+    {
+      pattern: /^openai\/gpt-4\.1/i,
+      label: "GPT-4.1",
+      reason: "Reliable JSON generation and long-context planning.",
+      fallbackId: "openai/gpt-4.1",
+    },
+    {
+      pattern: /^openai\/gpt-4o(?!-mini)/i,
+      label: "GPT-4o",
+      reason: "Balanced fallback with strong instruction following.",
+      fallbackId: "openai/gpt-4o",
+    },
+    {
+      pattern: /^google\/gemini-2\.5-pro/i,
+      label: "Gemini 2.5 Pro",
+      reason: "Deep reasoning option through OpenRouter.",
+      fallbackId: "google/gemini-2.5-pro",
+    },
+    {
+      pattern: /^google\/gemini-2\.5-flash/i,
+      label: "Gemini 2.5 Flash",
+      reason: "Fast structured-output option through OpenRouter.",
+      fallbackId: "google/gemini-2.5-flash",
+    },
+  ],
+};
 
 const keyForProvider = (provider: ProviderName, env: ProjectEnv) => {
   switch (provider) {
@@ -33,6 +167,156 @@ const keyForProvider = (provider: ProviderName, env: ProjectEnv) => {
     default:
       return undefined;
   }
+};
+
+const findModelRule = (provider: ProviderName, model: string) =>
+  CAPABLE_MODEL_RULES[provider].find((rule) => rule.pattern.test(model));
+
+const compareModelOptions = (provider: ProviderName, left: string, right: string) => {
+  const leftIndex = CAPABLE_MODEL_RULES[provider].findIndex((rule) => rule.pattern.test(left));
+  const rightIndex = CAPABLE_MODEL_RULES[provider].findIndex((rule) => rule.pattern.test(right));
+  const safeLeft = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex;
+  const safeRight = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex;
+
+  if (safeLeft !== safeRight) {
+    return safeLeft - safeRight;
+  }
+
+  return left.localeCompare(right);
+};
+
+const buildModelOption = (
+  provider: ProviderName,
+  model: string,
+  source: ProviderModelOption["source"],
+  extraDescription?: string,
+): ProviderModelOption => {
+  const rule = findModelRule(provider, model);
+  const details = [rule?.reason, extraDescription].filter(Boolean).join(" ");
+  return {
+    provider,
+    model,
+    label: rule ? `${rule.label} - ${model}` : model,
+    description: details || "Capable model for Project Studio prompts.",
+    source,
+  };
+};
+
+const dedupeModelOptions = (models: ProviderModelOption[]) => {
+  const unique = new Map<string, ProviderModelOption>();
+  models.forEach((model) => {
+    if (!unique.has(model.model)) {
+      unique.set(model.model, model);
+    }
+  });
+  return [...unique.values()];
+};
+
+const getFallbackModelOptions = (provider: ProviderName) =>
+  CAPABLE_MODEL_RULES[provider].map((rule) =>
+    buildModelOption(provider, rule.fallbackId, "fallback"),
+  );
+
+const canUseForProjectStudio = (provider: ProviderName, model: string, contextLength?: number) => {
+  if (!findModelRule(provider, model)) {
+    return false;
+  }
+
+  if (provider === "openrouter" && typeof contextLength === "number" && contextLength > 0) {
+    return contextLength >= 64000;
+  }
+
+  return true;
+};
+
+const fetchGeminiModelOptions = async (env: ProjectEnv) => {
+  const apiKey = env.GOOGLE_AI_STUDIO_API_KEY;
+  if (!apiKey) {
+    return [];
+  }
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+    signal: AbortSignal.timeout(6000),
+  });
+  if (!response.ok) {
+    throw new ProviderFailure(`Gemini model list failed: ${response.status} ${response.statusText}`);
+  }
+
+  const payload = (await response.json()) as {
+    models?: Array<{
+      name?: string;
+      description?: string;
+      supportedGenerationMethods?: string[];
+    }>;
+  };
+
+  return dedupeModelOptions(
+    (payload.models ?? [])
+      .map((entry) => {
+        const rawName = entry.name?.replace(/^models\//, "");
+        if (!rawName) {
+          return undefined;
+        }
+
+        if (!entry.supportedGenerationMethods?.includes("generateContent")) {
+          return undefined;
+        }
+
+        if (!canUseForProjectStudio("gemini", rawName)) {
+          return undefined;
+        }
+
+        return buildModelOption("gemini", rawName, "api", entry.description);
+      })
+      .filter((entry): entry is ProviderModelOption => Boolean(entry)),
+  ).sort((left, right) => compareModelOptions("gemini", left.model, right.model));
+};
+
+const fetchOpenRouterModelOptions = async (env: ProjectEnv) => {
+  const apiKey = env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    return [];
+  }
+
+  const response = await fetch("https://openrouter.ai/api/v1/models", {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    signal: AbortSignal.timeout(6000),
+  });
+  if (!response.ok) {
+    throw new ProviderFailure(`OpenRouter model list failed: ${response.status} ${response.statusText}`);
+  }
+
+  const payload = (await response.json()) as {
+    data?: Array<{
+      id?: string;
+      name?: string;
+      description?: string;
+      context_length?: number;
+    }>;
+  };
+
+  return dedupeModelOptions(
+    (payload.data ?? [])
+      .map((entry) => {
+        if (!entry.id) {
+          return undefined;
+        }
+
+        if (!canUseForProjectStudio("openrouter", entry.id, entry.context_length)) {
+          return undefined;
+        }
+
+        return buildModelOption(
+          "openrouter",
+          entry.id,
+          "api",
+          [entry.name, entry.description].filter(Boolean).join(". "),
+        );
+      })
+      .filter((entry): entry is ProviderModelOption => Boolean(entry)),
+  ).sort((left, right) => compareModelOptions("openrouter", left.model, right.model));
 };
 
 const extractJsonDocument = (raw: string) => {
@@ -146,6 +430,26 @@ export const resolveProviderStatuses = (env: ProjectEnv, config: StudioConfig): 
       reason: apiKey ? undefined : `Missing credentials for ${provider.provider}.`,
     };
   });
+};
+
+export const resolveReadyProviders = (env: ProjectEnv, config: StudioConfig) =>
+  resolveProviderStatuses(env, config).filter((provider) => provider.ready);
+
+export const listCapableProviderModels = async (provider: ProviderName, env: ProjectEnv): Promise<ProviderModelOption[]> => {
+  try {
+    const fromApi =
+      provider === "gemini"
+        ? await fetchGeminiModelOptions(env)
+        : await fetchOpenRouterModelOptions(env);
+
+    if (fromApi.length > 0) {
+      return fromApi;
+    }
+  } catch {
+    // Fall back to the curated list below when live model discovery fails.
+  }
+
+  return getFallbackModelOptions(provider);
 };
 
 export const resolveProviderChain = (env: ProjectEnv, config: StudioConfig) => {
