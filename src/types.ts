@@ -12,6 +12,20 @@ export const SCENE_ENTRY_VARIANTS = [
   "instant",
 ] as const;
 export type SceneEntryVariant = (typeof SCENE_ENTRY_VARIANTS)[number];
+export const SCENE_ROLES = [
+  "opening",
+  "answer",
+  "graphic",
+  "example",
+  "comparison",
+  "evidence",
+  "punchline",
+] as const;
+export type SceneRole = (typeof SCENE_ROLES)[number];
+export const OPENING_STYLES = ["question", "hook"] as const;
+export type OpeningStyle = (typeof OPENING_STYLES)[number];
+export const CAMERA_EASINGS = ["ease-in-out-cubic"] as const;
+export type CameraEasing = (typeof CAMERA_EASINGS)[number];
 
 export const EMOTION_SPEED_MAP: Record<VoiceEmotion, number> = {
   excited: 1.05,
@@ -142,6 +156,18 @@ export const PositionSchema = z.object({
   y: percentageOrCoordinate,
 });
 
+export const CameraPoseSchema = z.object({
+  x: percentageOrCoordinate,
+  y: percentageOrCoordinate,
+  scale: z.number().min(0.6).max(1.8),
+});
+
+export const CameraMoveSchema = z.object({
+  from: CameraPoseSchema,
+  to: CameraPoseSchema,
+  easing: z.enum(CAMERA_EASINGS).default("ease-in-out-cubic"),
+});
+
 // ── Word-level timestamp from STT ──
 export const WordTimestampSchema = z.object({
   word: z.string(),
@@ -225,6 +251,10 @@ export const SceneConfigSchema = z.object({
   id: nonEmptyString,
   startSecond: z.number().nonnegative(),
   endSecond: z.number().positive(),
+  role: z.enum(SCENE_ROLES).default("answer"),
+  openingStyle: z.enum(OPENING_STYLES).optional(),
+  cameraSectionId: z.string().trim().optional(),
+  cameraMove: CameraMoveSchema.optional(),
   narration: nonEmptyString,
   voiceId: z.string().optional(),
   emotion: z.string().optional(),
@@ -260,7 +290,7 @@ export const GenerationRequestSchema = z.object({
   takeaway: z.string().trim().optional(),
   type: z.enum(VIDEO_TYPES),
   format: z.enum(VIDEO_FORMATS),
-  durationSeconds: z.number().int().positive().max(90),
+  durationSeconds: z.number().int().positive(),
   sarcasm: z.boolean(),
   mode: z.enum(GENERATION_MODES).default("production"),
   quality: z.enum(QUALITY_MODES).default("production"),
@@ -268,6 +298,33 @@ export const GenerationRequestSchema = z.object({
   videoStyle: z.string().trim().optional(),
   paletteKey: z.string().trim().optional(),
   customPalette: ColorPaletteSchema.optional(),
+});
+
+export const NarrationDraftBlockSchema = z.object({
+  id: nonEmptyString,
+  roleHint: z.enum(SCENE_ROLES).optional(),
+  text: nonEmptyString,
+  keyTerms: z.array(nonEmptyString).default([]),
+  visualHint: z.string().trim().optional(),
+});
+
+export const NarrationDraftSectionSchema = z.object({
+  id: nonEmptyString,
+  title: nonEmptyString,
+  purpose: nonEmptyString,
+  blocks: z.array(NarrationDraftBlockSchema).min(1),
+});
+
+export const NarrationDraftSchema = z.object({
+  version: z.literal(1),
+  slug: nonEmptyString,
+  topic: nonEmptyString,
+  type: z.enum(VIDEO_TYPES),
+  durationSeconds: z.number().positive(),
+  openingStyle: z.enum(OPENING_STYLES),
+  thesis: nonEmptyString,
+  narrativeSections: z.array(NarrationDraftSectionSchema).min(1),
+  productionNotes: z.array(nonEmptyString).default([]),
 });
 
 export const GenerationPlanSceneSchema = z.object({
@@ -455,6 +512,8 @@ export const VideoScriptSchema = z
   });
 
 export type Position = z.infer<typeof PositionSchema>;
+export type CameraPose = z.infer<typeof CameraPoseSchema>;
+export type CameraMove = z.infer<typeof CameraMoveSchema>;
 export type VisualElement = z.infer<typeof VisualElementSchema>;
 export type VisualConfig = z.infer<typeof VisualConfigSchema>;
 export type TealElementConfig = z.infer<typeof TealElementConfigSchema>;
@@ -464,6 +523,9 @@ export type SceneConfig = z.infer<typeof SceneConfigSchema>;
 export type BackgroundMusicConfig = z.infer<typeof BackgroundMusicSchema>;
 export type OperatorOptions = z.infer<typeof OperatorOptionsSchema>;
 export type GenerationRequest = z.infer<typeof GenerationRequestSchema>;
+export type NarrationDraftBlock = z.infer<typeof NarrationDraftBlockSchema>;
+export type NarrationDraftSection = z.infer<typeof NarrationDraftSectionSchema>;
+export type NarrationDraft = z.infer<typeof NarrationDraftSchema>;
 export type GenerationPlanScene = z.infer<typeof GenerationPlanSceneSchema>;
 export type GenerationPlan = z.infer<typeof GenerationPlanSchema>;
 export type AssetFile = z.infer<typeof AssetFileSchema>;
