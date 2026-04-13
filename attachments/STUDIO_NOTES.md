@@ -49,7 +49,7 @@ If no Lottie matches your concept, use kind: "label" or kind: "hero" and never i
 | lottie/wired/wired-lineal-981-consultation-hover-conversation.json | wired lineal 981 consultation hover conversation animation. | wired, lineal, 981, consultation |
 
 ## SOUND EFFECTS
-Use these EXACT paths in sfxCues[].file fields.
+Use these EXACT paths in [sfxCues].file fields.
 
 | Path | Duration | Use When |
 | --- | --- | --- |
