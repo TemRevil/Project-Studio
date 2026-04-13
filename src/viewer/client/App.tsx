@@ -108,8 +108,9 @@ export default function App() {
 
     // Sort: directories first, then alphabetically
     return [...items].sort((a, b) => {
-      if (a.type === b.type) return a.name.localeCompare(b.name);
-      return a.type === 'directory' ? -1 : 1;
+      if (a.type === 'directory' && b.type !== 'directory') return -1;
+      if (a.type !== 'directory' && b.type === 'directory') return 1;
+      return a.name.localeCompare(b.name);
     });
   }, [currentPath, attachments, search]);
 
@@ -150,15 +151,39 @@ export default function App() {
     const name = await showPrompt("Enter folder name:", "", "New Folder");
     if (!name) return;
     const path = [...currentPath, name].join("/");
+    
+    // OPTIMISTIC UPDATE
+    const newFolder: Attachment = {
+      name,
+      type: 'directory',
+      path,
+      children: []
+    };
+
+    setAttachments(prev => {
+      const addItem = (items: Attachment[], pathParts: string[]): Attachment[] => {
+        if (pathParts.length === 1) {
+          return [...items, newFolder];
+        }
+        return items.map(item => {
+          if (item.name === pathParts[0] && item.children) {
+            return { ...item, children: addItem(item.children, pathParts.slice(1)) };
+          }
+          return item;
+        });
+      };
+      return addItem(prev, [...currentPath, name]);
+    });
+
     try {
       const res = await fetch("/api/mkdir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path }),
       });
-      if (res.ok) fetchAttachments();
-      else showAlert("Failed to create folder. It might already exist.", "Error");
+      if (!res.ok) fetchAttachments(); // Sync if failed
     } catch (err) {
+      fetchAttachments(); // Sync if failed
       showAlert("An unexpected error occurred", "Error");
     }
   };
@@ -217,25 +242,44 @@ export default function App() {
              icon="lucide:edit-3" 
              label="Rename" 
              onClick={async () => {
-                const path = Array.from(selectedPaths)[0];
-                const parts = path.split('/');
-                const oldName = parts[parts.length - 1];
-                const newName = await showPrompt("Enter new name:", oldName, "Rename Item");
-                if (newName && newName !== oldName) {
-                  const newPath = [...parts.slice(0, -1), newName].join('/');
-                  const res = await fetch("/api/rename", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ oldPath: path, newPath }),
-                  });
-                  if (res.ok) {
-                    fetchAttachments();
-                    setSelectedPaths(new Set());
-                  } else {
-                    showAlert("Failed to rename item", "Error");
-                  }
-                }
-             }} 
+                 const path = Array.from(selectedPaths)[0];
+                 const parts = path.split('/');
+                 const oldName = parts[parts.length - 1];
+                 const newName = await showPrompt("Enter new name:", oldName, "Rename Item");
+                 
+                 if (newName && newName !== oldName) {
+                   const newPath = [...parts.slice(0, -1), newName].join('/');
+                   
+                   // OPTIMISTIC UPDATE
+                   setAttachments(prev => {
+                     const updateItem = (items: Attachment[]): Attachment[] => {
+                       return items.map(item => {
+                         if (item.path === path) {
+                           return { ...item, name: newName, path: newPath };
+                         }
+                         if (item.children) {
+                           return { ...item, children: updateItem(item.children) };
+                         }
+                         return item;
+                       });
+                     };
+                     return updateItem(prev);
+                   });
+                   setSelectedPaths(new Set());
+
+                   try {
+                     const res = await fetch("/api/rename", {
+                       method: "POST",
+                       headers: { "Content-Type": "application/json" },
+                       body: JSON.stringify({ oldPath: path, newPath }),
+                     });
+                     if (!res.ok) fetchAttachments(); // Sync if failed
+                   } catch (err) {
+                     fetchAttachments(); // Sync if failed
+                     showAlert("Failed to rename item", "Error");
+                   }
+                 }
+              }} 
            />
          )}
 
@@ -245,26 +289,41 @@ export default function App() {
               label="Delete" 
               color="text-red-500"
               onClick={async () => {
-                const confirmed = await showConfirm(`Are you sure you want to delete ${selectedPaths.size} item(s)? This action cannot be undone.`, "Danger Zone");
-                if (confirmed) {
-                  try {
-                    const res = await fetch("/api/delete", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ paths: Array.from(selectedPaths) }),
-                    });
-                    
-                    if (res.ok) {
-                      fetchAttachments();
-                      setSelectedPaths(new Set());
-                    } else {
-                      showAlert("Failed to delete one or more items.", "Error");
-                    }
-                  } catch (err) {
-                    showAlert("An error occurred during deletion.", "Error");
-                  }
-                }
-              }} 
+                 const confirmed = await showConfirm(`Are you sure you want to delete ${selectedPaths.size} item(s)? This action cannot be undone.`, "Danger Zone");
+                 if (confirmed) {
+                   const pathsToDelete = Array.from(selectedPaths);
+                   
+                   // OPTIMISTIC UPDATE
+                   setAttachments(prev => {
+                     const removeItems = (items: Attachment[]): Attachment[] => {
+                       return items
+                        .filter(item => !pathsToDelete.includes(item.path))
+                        .map(item => ({
+                          ...item,
+                          children: item.children ? removeItems(item.children) : []
+                        }));
+                     };
+                     return removeItems(prev);
+                   });
+                   setSelectedPaths(new Set());
+
+                   try {
+                     const res = await fetch("/api/delete", {
+                       method: "POST",
+                       headers: { "Content-Type": "application/json" },
+                       body: JSON.stringify({ paths: pathsToDelete }),
+                     });
+                     
+                     if (!res.ok) {
+                       fetchAttachments(); // Sync if failed
+                       showAlert("Failed to delete one or more items.", "Error");
+                     }
+                   } catch (err) {
+                     fetchAttachments(); // Sync if failed
+                     showAlert("An error occurred during deletion.", "Error");
+                   }
+                 }
+               }} 
             />
          )}
 
